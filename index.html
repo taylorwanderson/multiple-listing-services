@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>US Multiple Listing Services Map</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    background: #f5f4f0;
+    color: #1a1a1a;
+    min-height: 100vh;
+    padding: 0;
+  }
+
+  .mls-map-widget {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+  }
+
+  .header {
+    margin-bottom: 28px;
+  }
+
+  .header h1 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: clamp(28px, 4vw, 42px);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    color: #111;
+    line-height: 1.1;
+  }
+
+  .header p {
+    margin-top: 8px;
+    font-size: 15px;
+    color: #666;
+    line-height: 1.5;
+  }
+
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  @media (max-width: 640px) {
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  .stat-card {
+    background: #fff;
+    border: 1px solid #e5e3de;
+    border-radius: 10px;
+    padding: 14px 16px;
+    text-align: center;
+  }
+
+  .stat-card .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #999;
+    font-weight: 500;
+    margin-bottom: 4px;
+  }
+
+  .stat-card .value {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 28px;
+    color: #111;
+    line-height: 1;
+  }
+
+  .stat-card .value.down { color: #c0392b; }
+  .stat-card .value.neutral { color: #2c6e49; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+
+  .controls input,
+  .controls select {
+    height: 38px;
+    padding: 0 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: inherit;
+    background: #fff;
+    color: #222;
+    outline: none;
+    transition: border-color 0.15s;
+    -webkit-appearance: none;
+  }
+
+  .controls input { flex: 1; min-width: 180px; }
+  .controls select { cursor: pointer; padding-right: 28px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+  .controls input:focus, .controls select:focus { border-color: #2c6e49; }
+
+  .result-count {
+    margin-left: auto;
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-container {
+    background: #fff;
+    border: 1px solid #e5e3de;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  #map { width: 100%; display: block; }
+
+  .map-loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: #fff;
+    font-size: 13px;
+    color: #999;
+    z-index: 2;
+    transition: opacity 0.3s;
+  }
+
+  .map-loading.hidden { opacity: 0; pointer-events: none; }
+
+  .detail-panel {
+    background: #fff;
+    border: 1px solid #e5e3de;
+    border-radius: 10px;
+    padding: 14px 18px;
+    font-size: 13px;
+    color: #888;
+    min-height: 56px;
+    margin-bottom: 12px;
+    transition: background 0.15s;
+  }
+
+  .detail-panel.active { background: #fafaf8; }
+
+  .detail-panel .mls-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #111;
+    margin-bottom: 3px;
+  }
+
+  .detail-panel .mls-meta {
+    color: #666;
+    margin-bottom: 4px;
+    line-height: 1.5;
+  }
+
+  .detail-panel a {
+    color: #2c6e49;
+    text-decoration: none;
+    font-size: 12px;
+    margin-right: 12px;
+  }
+
+  .detail-panel a:hover { text-decoration: underline; }
+
+  .cert-badge {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    font-size: 12px;
+    color: #888;
+    align-items: center;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .legend-note {
+    margin-left: auto;
+    font-size: 11px;
+    color: #bbb;
+  }
+
+  @media (max-width: 500px) {
+    .legend-note { display: none; }
+  }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Serif+Display&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="mls-map-widget">
+
+  <div class="header">
+    <h1>US Multiple Listing Services</h1>
+    <p>All 540+ active MLSs tracked by RESO — plotted by location, sized by subscriber count. Data: RESO UOI, March 2026.</p>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-card">
+      <div class="label">Active MLSs (2025)</div>
+      <div class="value">484</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Peak (2015)</div>
+      <div class="value">~850</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Decline since peak</div>
+      <div class="value down">−43%</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Top 20 revenue share</div>
+      <div class="value neutral">49%</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <input type="text" id="sb" placeholder="Search by name or city…">
+    <select id="stf"><option value="">All states</option></select>
+    <select id="cf">
+      <option value="">All certifications</option>
+      <option value="Certified Current">Certified Current</option>
+      <option value="Passed Current">Passed Current</option>
+      <option value="Uncertified">Uncertified</option>
+    </select>
+    <select id="szf">
+      <option value="">All sizes</option>
+      <option value="xl">Large (5,000+)</option>
+      <option value="lg">Mid (1,000–4,999)</option>
+      <option value="md">Small (200–999)</option>
+      <option value="sm">Micro (&lt;200)</option>
+    </select>
+    <span class="result-count" id="rc">Loading…</span>
+  </div>
+
+  <div class="map-container">
+    <div class="map-loading" id="loader">Loading map…</div>
+    <svg id="map"></svg>
+  </div>
+
+  <div class="detail-panel" id="panel">
+    Hover or click any dot to see MLS details. Dot size reflects subscriber count.
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="legend-dot" style="background:#2c6e49"></span>Certified Current</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#2980b9"></span>Passed Current</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#95a5a6"></span>Uncertified / Other</span>
+    <span class="legend-note">Source: RESO Unique Organization Identifier (UOI) registry · March 2026</span>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script>
+const ORGS=[
+["M00000570","Aberdeen Area Assn of REALTORS","Aberdeen","SD",45.476172,-98.410405,84,"Certified Current","https://www.growaberdeen.com","2023-04-04"],
+["M00000483","Adirondack-Champlain Valley MLS","Plattsburgh","NY",44.69701,-73.45025,532,"Certified Current","https://www.usamls.net/adirondack-champlainvalley","2022-10-12"],
+["M00000555","Aiken Assn of REALTORS","Aiken","SC",33.499924,-81.746396,805,"Certified Current","https://www.aikenmls.com","2023-02-16"],
+["M00000001","Alaska Multiple Listing Service","Anchorage","AK",61.185566,-149.86928,2257,"Certified Current","https://www.alaskarealestate.com","2023-04-04"],
+["M00000172","Albany Board of REALTORS","Albany","GA",31.60213,-84.206903,241,"Passed Current","https://www.albanyboardofrealtors.com","2022-10-12"],
+["M00000450","All Jersey MLS","Fords","NJ",40.528593,-74.30942,9298,"Certified Current","https://alljerseymls.com","2024-04-26"],
+["M00000533","Allegheny Highland Assn of REALTORS","Altoona","PA",40.508041,-78.40181,442,"Certified Current","https://centralpahomefinder.com","2023-07-03"],
+["M00000797","Allegheny Valley Board of REALTORS","Lemoyne","PA",41.214787,-79.385323,234,"Passed Current","https://www.usamls.net/alleghenyvalley","2023-07-19"],
+["M00000189","Altamaha Basin Board of REALTORS","Vidalia","GA",32.21377,-82.41312,89,"Passed Current","https://www.usamls.net/altamahabasin","2023-07-05"],
+["M00000113","Altitude MLS","Dillon","CO",39.629241,-106.047258,622,"Certified Current","https://altituderealtors.com","2025-04-25"],
+["M00000588","Amarillo Assn of REALTORS","Amarillo","TX",35.189018,-101.899768,1050,"Certified Current","https://www.amarillorealtors.org","2023-04-04"],
+["M00000136","Amelia Island-Nassau County Assn of REALTORS","Fernandina Beach","FL",30.658172,-81.452741,548,"Certified Current","https://www.aincar.org","2025-01-03"],
+["M00000173","Americus Board of REALTORS","Americus","GA",32.040432,-84.215282,33,"Certified Current","https://www.americusareamls.com","2022-10-13"],
+["M00000290","APEX MLS (Greater Louisville Assn of REALTORS)","Louisville","KY",38.220538,-85.530688,5501,"Certified Current","https://www.louisvillerealtors.com","2025-08-28"],
+["M00000048","Arizona Regional MLS (ARMLS)","Tempe","AZ",33.428752,-111.962063,41807,"Certified Current","https://armls.com","2025-01-14"],
+["M00000035","ArkansasONE MLS","Lowell","AR",36.258297,-94.154955,4175,"Certified Current","https://www.nwarealtors.org","2025-04-25"],
+["M00000278","Ashland Area Board of REALTORS","Ashland","KY",38.47997,-82.64035,178,"Uncertified","https://ashlandarearealtors.com","2023-07-03"],
+["M00000492","Ashland Board of REALTORS","Ashland","OH",40.86842,-82.31379,93,"Certified Current","https://www.ashlandboardofrealtors.com","2022-10-13"],
+["M00000109","Aspen Glenwood MLS","Carbondale","CO",39.401628,-107.210077,1196,"Certified Current","https://www.aspenglenwoodmls.com","2022-08-15"],
+["M00000733","Athens County Board of REALTORS","Athens","OH",39.32344,-82.1043,142,"Passed Current","https://www.athenscountyrealtors.com","2023-04-04"],
+["M00000427","Badlands Board of REALTORS","Dickinson","ND",46.879997,-102.785687,150,"Certified Current","https://badlandsboard.net","2025-03-17"],
+["M00000355","Bagnell Dam Assn of REALTORS","Lake Ozark","MO",38.19864,-92.6388,448,"Certified Current","https://thelanding.missourirealtor.org/bdar/home","2022-09-23"],
+["M00000053","Bakersfield Assn of REALTORS / GEMLS","Bakersfield","CA",35.355012,-119.056193,2837,"Certified Current","https://www.bakersfieldrealtor.com","2022-12-02"],
+["M00000022","Baldwin REALTORS","Robertsdale","AL",30.56455,-87.71587,2836,"Certified Current","https://www.baldwinrealtors.com","2022-10-13"],
+["M00000714","Batesville Board of REALTORS","Batesville","AR",35.734617,-91.534303,75,"Passed Current","https://www.batesvillerealtors.com","2022-10-13"],
+["M00000844","Battle Creek Area Assn of REALTORS","Battle Creek","MI",42.288449,-85.161991,205,"Certified Current","https://bcaar.com","2022-08-16"],
+["M00000097","Bay Area Real Estate Information Services (BAREIS)","Santa Rosa","CA",38.439726,-122.744093,7800,"Certified Current","https://www.bareis.com","2023-04-04"],
+["M00000087","Bay East Assn of REALTORS","Pleasanton","CA",37.66167,-121.9011,5988,"Certified Current","https://bayeast.org","2023-07-03"],
+["M00000170","BeachesMLS","West Palm Beach","FL",26.72036,-80.099367,41000,"Certified Current","https://rworld.com","2023-07-03"],
+["M00000591","Beaumont Board of REALTORS","Beaumont","TX",30.094472,-94.130073,596,"Uncertified","","2024-09-05"],
+["M00000665","Beckley Board of REALTORS","Beckley","WV",37.777817,-81.179468,148,"Certified Current","https://www.bborwv.com","2023-04-04"],
+["M00000305","Berkshire County Board of REALTORS","Pittsfield","MA",42.447884,-73.257247,684,"Certified Current","https://berkshirerealtors.net","2025-03-17"],
+["M00000055","Big Bear Assn of REALTORS","Big Bear Lake","CA",34.242546,-116.910436,410,"Certified Current","https://bbaor.com","2023-07-07"],
+["M00000379","Big Sky Country MLS","Bozeman","MT",45.67181,-111.09201,1575,"Certified Current","https://www.swmtrealtors.com","2025-10-09"],
+["M00000378","Billings Multiple Listing Service","Billings","MT",45.75373,-108.567486,1019,"Certified Current","https://www.billings.org","2022-09-26"],
+["M00000571","Black Hills Assn of REALTORS","Rapid City","SD",44.08625,-103.24063,537,"Uncertified","https://www.bhmls.com","2023-07-05"],
+["M00000843","Branch County Assn of REALTORS","Coldwater","MI",41.941009,-85.001849,95,"Certified Current","https://bcarealtors.com","2022-08-16"],
+["M00000602","Brazoria County Board of REALTORS","Lake Jackson","TX",29.051886,-95.423632,100,"Certified Current","https://www.usamls.net/brazoriacounty","2023-04-04"],
+["M00000057","bridgeMLS","Berkeley","CA",37.858206,-122.258807,3500,"Certified Current","https://www.bridgemls.com","2022-08-15"],
+["M00000309","Bright MLS","North Bethesda","MD",39.0512,-77.11723,94800,"Certified Current","https://www.brightmls.com","2023-07-05"],
+["M00000471","Brooklyn Board of REALTORS","Brooklyn","NY",40.596107,-73.974203,3707,"Uncertified","https://www.tbbor.com","2023-04-04"],
+["M00000592","Bryan-College Station Regional MLS","College Station","TX",30.63653,-96.32156,1555,"Certified Current","https://www.bcsrealtor.com","2025-01-03"],
+["M00000077","Buffalo Trace Multiple Listing Service","Maysville","KY",38.6485,-83.7667,85,"Passed Current","https://www.usamls.net/buffalotrace","2023-01-04"],
+["M00000082","California Desert Assn of REALTORS","Palm Desert","CA",33.725667,-116.391682,3047,"Certified Current","https://cdaronline.org","2023-04-04"],
+["M00000093","California Regional MLS (CRMLS)","Chino Hills","CA",33.972445,-117.692549,119125,"Certified Current","https://go.crmls.org","2023-06-06"],
+["M00000542","Cambria Somerset Assn of REALTORS","Johnstown","PA",40.273347,-78.847179,198,"Certified Current","https://www.usamls.net/cambria","2023-07-05"],
+["M00000391","Canopy MLS","Charlotte","NC",35.211535,-80.839173,21280,"Certified Current","https://www.canopymls.com","2022-12-02"],
+["M00000307","Cape Cod & Islands Assn of REALTORS","West Yarmouth","MA",41.678296,-70.248694,2807,"Certified Current","https://cciaor.com","2022-08-15"],
+["M00000447","Cape May County Assn of REALTORS","Cape May Court House","NJ",39.12565,-74.78452,1656,"Uncertified","https://cmcar.org","2025-01-03"],
+["M00000166","Capital Area Technology & REALTOR Services","Tallahassee","FL",30.453996,-84.278206,1857,"Certified Current","https://www.tbrnet.org","2022-12-01"],
+["M00000395","Carolina Smokies Assn of REALTORS","Franklin","NC",35.178645,-83.377843,380,"Certified Current","https://www.carolinasmokiesrealtors.com","2025-02-11"],
+["M00000752","Carpet Capital Assn of REALTORS","Dalton","GA",34.770794,-84.96986,244,"Certified Current","https://www.usamls.net/dalton","2024-10-08"],
+["M00000525","Cascades East Multiple Listing Service","Bend","OR",44.070822,-121.299761,2500,"Certified Current","https://www.cascadeseastrealtors.com","2025-03-31"],
+["M00000645","CBRAR Property Services","Gloucester","VA",37.4057,-76.51959,459,"Certified Current","https://cbrar.org","2022-09-23"],
+["M00000200","Cedar Rapids Area Assn of REALTORS","Cedar Rapids","IA",41.992853,-91.64488,928,"Certified Current","https://crrealtors.org","2022-10-13"],
+["M00000043","Central Arizona Assn of REALTORS","Payson","AZ",34.24175,-111.31486,584,"Certified Current","https://www.caaraz.com","2023-07-05"],
+["M00000190","Central Georgia MLS","Warner Robins","GA",32.612986,-83.699268,516,"Uncertified","https://cgmls.net","2022-10-13"],
+["M00000596","Central Hill Country Board of REALTORS","Fredericksburg","TX",30.287007,-98.869651,595,"Certified Current","https://www.usamls.net/centralhillcountry","2023-07-05"],
+["M00000719","Central Illinois Board of REALTORS","Charleston","IL",39.48616,-88.16154,635,"Certified Current","https://www.cibr.realtor","2023-06-27"],
+["M00000197","Central Iowa Board of REALTORS","Ames","IA",41.999398,-93.639651,319,"Certified Current","https://www.centraliowamls.com","2022-08-16"],
+["M00000772","Central Missouri Board of REALTORS","Marshall","MO",38.96632,-93.215274,108,"Certified Current","https://www.centralmoboard.realtor","2023-04-04"],
+["M00000481","Central New York Information Services","North Syracuse","NY",43.124087,-76.107724,2368,"Uncertified","https://www.cnyrealtor.com","2025-03-30"],
+["M00000159","Central Panhandle Assn of REALTORS","Panama City","FL",30.182213,-85.72354,2098,"Certified Current","https://www.centralpanhandlemls.com","2022-09-23"],
+["M00000792","Central Pennsylvania MLS","Burnham","PA",40.63868,-77.5686,40,"Uncertified","","2025-05-23"],
+["M00000538","Central Susquehanna Valley Board of REALTORS MLS","Danville","PA",40.96318,-76.61661,355,"Passed Current","https://www.csvrealtors.com","2023-07-06"],
+["M00000610","Central Texas MLS (CTXMLS)","New Braunfels","TX",29.728212,-98.10339,7701,"Certified Current","https://ctxmls.com","2023-07-06"],
+["M00000643","Central Virginia Regional MLS","Richmond","VA",37.607683,-77.562173,7167,"Certified Current","https://cvrmls.com","2022-08-16"],
+["M00000581","Central West Tennessee Assn of REALTORS","Jackson","TN",35.706203,-88.853619,585,"Passed Current","https://westtnhomesearch.com","2022-12-13"],
+["M00000660","Central Wisconsin Multiple Listing Service","Mosinee","WI",44.78748,-89.66748,784,"Passed Current","https://www.cwbr.org","2024-10-30"],
+["M00000633","Charlottesville Area Assn of REALTORS","Charlottesville","VA",38.070664,-78.480465,1350,"Uncertified","https://www.caar.com","2022-10-13"],
+["M00000560","Cherokee County Board of REALTORS","Gaffney","SC",35.078353,-81.682391,65,"Uncertified","https://www.cherokeeboard.com","2025-03-21"],
+["M00000675","Cheyenne Board of REALTORS","Cheyenne","WY",41.136862,-104.810733,513,"Certified Current","https://www.cheyennerealtors.com","2023-01-03"],
+["M00000558","CHS Regional MLS (Charleston Trident)","North Charleston","SC",32.909648,-80.094765,7345,"Certified Current","https://www.chsmls.com","2025-02-02"],
+["M00000526","Clatsop Assn of REALTORS","Gearhart","OR",46.024275,-123.91125,175,"Passed Current","https://www.clatsoprealtors.org","2023-07-06"],
+["M00000539","Clearfield Jefferson Assn of REALTORS","Dubois","PA",41.087532,-78.794636,130,"Passed Current","https://www.clearfieldjefferson.com","2023-07-07"],
+["M00000565","Coastal Carolinas Assn of REALTORS","Myrtle Beach","SC",33.667697,-78.936426,4938,"Certified Current","https://www.ccarsc.org","2022-08-16"],
+["M00000227","Coeur d'Alene Multiple Listing Service","Coeur d'Alene","ID",47.707657,-116.793796,2197,"Certified Current","https://www.cdarealtors.com","2023-07-10"],
+["M00000684","Colorado Real Estate Network (CREN)","Montrose","CO",38.481758,-107.875914,1650,"Certified Current","https://crenmls.com","2023-07-10"],
+["M00000349","Columbia Board of REALTORS","Columbia","MO",38.95947,-92.36934,900,"Certified Current","https://cbormls.com","2022-08-16"],
+["M00000495","Columbus and Central Ohio Regional MLS","Columbus","OH",39.995126,-82.935028,9738,"Certified Current","https://columbusrealtors.com","2022-10-13"],
+["M00000753","Columbus Board of REALTORS (GA)","Columbus","GA",32.5001,-84.954131,822,"Certified Current","https://cboronline.com","2025-01-03"],
+["M00000432","Columbus Board of REALTORS (NE)","Columbus","NE",41.431435,-97.356214,86,"Uncertified","","2023-07-07"],
+["M00000103","Conejo Simi Moorpark Assn of REALTORS","Thousand Oaks","CA",34.184846,-118.874446,2029,"Certified Current","https://csmaor.com","2022-12-13"],
+["M00000559","Consolidated MLS (Columbia MLS)","Columbia","SC",34.06023,-81.12937,3501,"Uncertified","https://www.columbiamls.com","2023-01-04"],
+["M00000105","Contra Costa Assn of REALTORS","Walnut Creek","CA",37.895849,-122.06526,4286,"Certified Current","https://ccartoday.com","2023-04-04"],
+["M00000031","Cooperative Arkansas REALTORS MLS","Little Rock","AR",34.754805,-92.388739,4574,"Certified Current","https://www.carmls.com","2023-04-04"],
+["M00000133","Corbin Property Listing Service","Corbin","KY",36.950272,-84.109123,7,"Uncertified","https://www.usamls.net/corbin","2022-08-02"],
+["M00000006","Covington Assn of REALTORS","Andalusia","AL",31.3085,-86.48329,62,"Uncertified","https://www.covingtonrealtors.org","2023-04-04"],
+["M00000174","Crisp Area Board of REALTORS","Cordele","GA",31.917178,-83.785365,51,"Certified Current","https://www.crispareamls.com","2023-02-09"],
+["M00000836","Dalhart Board of REALTORS","Dalhart","TX",36.059155,-102.525982,38,"Uncertified","https://www.dalharttxmls.com","2023-07-07"],
+["M00000636","Dan River Region Assn of REALTORS","Danville","VA",36.600524,-79.413628,130,"Passed Current","https://drrar.com","2020-01-06"],
+["M00000496","Dayton REALTORS","Dayton","OH",39.737993,-84.186314,4200,"Certified Current","https://www.dabr.com","2023-01-03"],
+["M00000140","Daytona Beach Area Assn of REALTORS","Holly Hill","FL",29.259075,-81.049154,2968,"Certified Current","https://www.daytonarealtors.com","2023-04-04"],
+["M00000685","Del Norte Assn of REALTORS","Crescent City","CA",41.753334,-124.192368,88,"Uncertified","https://dnaor.com","2023-01-03"],
+["M00000204","Des Moines Area Assn of REALTORS","West Des Moines","IA",41.563602,-93.789559,2600,"Certified Current","https://www.dmaar.com","2023-07-12"],
+["M00000134","Dixie Gilchrist Levy Board of REALTORS","Chiefland","FL",29.478915,-82.860416,225,"Certified Current","https://www.dglmls.com","2024-09-11"],
+["M00000687","Dodge City Board of REALTORS","Dodge City","KS",37.756043,-100.018951,33,"Uncertified","https://dodgecityrealtors.com","2023-07-10"],
+["M00000661","Door County Board of REALTORS","Sturgeon Bay","WI",44.836593,-87.364731,259,"Passed Current","https://www.dcbr.org","2023-07-07"],
+["M00000389","Doorify MLS","Cary","NC",35.8316,-78.774119,15329,"Certified Current","https://doorifymls.com","2024-09-11"],
+["M00000013","Dothan Multiple Listing Service","Dothan","AL",31.226201,-85.407223,592,"Certified Current","https://www.mlsdothan.com","2023-04-06"],
+["M00000825","Douglas Coffee County Board of REALTORS","Douglas","GA",31.571596,-82.854631,74,"Certified Current","https://www.usamls.net/douglascoffee","2023-04-06"],
+["M00000180","Dublin Board of REALTORS","Dublin","GA",32.546207,-82.935551,78,"Passed Current","https://www.usamls.net/dublin","2023-07-14"],
+["M00000688","Duncan Assn of REALTORS","Duncan","OK",34.50464,-97.962457,93,"Uncertified","https://www.duncanassociationrealtors.com","2023-04-06"],
+["M00000021","East Alabama Board of REALTORS","Phenix City","AL",32.474644,-85.024181,650,"Certified Current","https://www.eabor.org","2023-04-06"],
+["M00000849","East Central Indiana Board of REALTORS","Connersville","IN",39.641614,-85.13918,88,"Uncertified","https://eastcentralindiana.us","2025-01-03"],
+["M00000210","East Central Iowa Assn of REALTORS","Dubuque","IA",42.501553,-90.721024,300,"Uncertified","https://eciaor.com","2023-04-01"],
+["M00000801","East Central South Dakota Board of REALTORS","Brookings","SD",44.355091,-96.762102,95,"Certified Current","https://ecsdbr.com","2023-04-01"],
+["M00000371","East Mississippi REALTORS","Meridian","MS",32.411147,-88.700273,148,"Passed Current","https://emr.realtor","2023-01-05"],
+["M00000582","East Tennessee REALTORS MLS","Knoxville","TN",35.93648,-84.00857,6001,"Certified Current","https://www.etnrealtors.com","2023-07-20"],
+["M00000038","Eastern Arkansas REALTORS Assn","West Memphis","AR",35.145096,-90.200793,138,"Passed Current","https://www.usamls.net/westmemphis","2023-01-05"],
+["M00000716","Eastern Kentucky Assn of REALTORS","Prestonsburg","KY",37.668445,-82.758198,143,"Certified Current","https://ekaronline.com","2025-01-03"],
+["M00000631","Eastern Shore Assn of REALTORS","Onley","VA",37.70141,-75.71688,183,"Passed Current","https://www.usamls.net/easternshore","2023-07-19"],
+["M00000769","Eastern Upper Peninsula Board of REALTORS","Sault Sainte Marie","MI",46.500731,-84.349806,91,"Certified Current","https://michiganuprealtors.com","2023-02-20"],
+["M00000854","El Dorado Board of REALTORS","El Dorado","AR",33.218096,-92.664052,62,"Uncertified","","2023-07-19"],
+["M00000793","Elk Cameron Board of REALTORS","St Marys","PA",41.42797,-78.55472,36,"Certified Current","https://www.elkcameron.com","2025-01-03"],
+["M00000691","Elko County Assn of REALTORS","Elko","NV",40.82537,-115.768831,150,"Certified Current","https://www.elkorealtors.com","2023-04-01"],
+["M00000138","Emerald Coast Assn of REALTORS","Fort Walton Beach","FL",30.412195,-86.611633,4138,"Certified Current","https://www.emeraldcoastrealtors.com","2023-04-01"],
+["M00000710","Eufaula Board of REALTORS","Eufaula","AL",31.892944,-85.143827,77,"Passed Current","https://www.eufaulamls.com","2023-05-19"],
+["M00000802","Fayette-Nicholas Board of REALTORS","Fayetteville","WV",38.063982,-81.094259,43,"Passed Current","https://fayettenicholasbor.com","2023-02-20"],
+["M00000504","Firelands Assn of REALTORS","Sandusky","OH",41.426421,-82.703849,537,"Passed Current","https://www.faor.com","2022-11-21"],
+["M00000175","First Multiple Listing Service (FMLS)","Atlanta","GA",33.904133,-84.378208,54900,"Certified Current","https://www.fmls.com","2023-07-12"],
+["M00000271","Flint Hills Assn of REALTORS","Manhattan","KS",39.176279,-96.603774,483,"Certified Current","https://www.flinthillsrealtors.net","2023-02-14"],
+["M00000130","Florida Gulf Coast Multiple Listing Service","Fort Myers","FL",26.603746,-81.852924,9284,"Certified Current","https://rpcra.org","2025-03-04"],
+["M00000168","Florida Keys Board of REALTORS","Key Largo","FL",25.075633,-80.461302,800,"Certified Current","https://www.flkeysboardofrealtors.com","2023-02-20"],
+["M00000705","Foothills REALTOR Assn of North Carolina","Rutherfordton","NC",35.363159,-81.987907,119,"Certified Current","https://foothills-realtors.com","2023-02-15"],
+["M00000129","Forgotten Coast REALTOR Assn","Apalachicola","FL",29.722186,-84.989437,309,"Certified Current","https://www.forgottencoastmls.com","2024-09-11"],
+["M00000211","Fort Dodge MLS","Fort Dodge","IA",42.515195,-94.177751,153,"Certified Current","https://www.ftdodgemls.com","2023-07-10"],
+["M00000060","Fresno MLS","Fresno","CA",36.83534,-119.826209,3712,"Certified Current","https://fresnorealtors.com","2022-12-04"],
+["M00000597","Galveston Assn of REALTORS","Galveston","TX",29.272841,-94.835563,252,"Certified Current","https://thegalvestonmls.com","2023-07-10"],
+["M00000449","Garden State MLS","Parsippany","NJ",40.84005,-74.459676,24209,"Uncertified","https://www.gsmls.com","2022-10-14"],
+["M00000188","Georgia MLS","Tucker","GA",33.826205,-84.255102,50021,"Passed Current","https://www.gamls.com","2022-10-14"],
+["M00000468","Global MLS","Albany","NY",42.740833,-73.840488,4500,"Certified Current","https://globalmls.com","2022-08-16"],
+["M00000178","Golden Isles Assn of REALTORS","Brunswick","GA",31.15213,-81.485172,712,"Certified Current","https://www.mygiar.com","2023-07-12"],
+["M00000364","Golden Triangle Assn of REALTORS","Columbus","MS",33.484147,-88.283998,354,"Certified Current","https://www.gtrealtors.org","2023-02-20"],
+["M00000115","Grand County Board of REALTORS","Granby","CO",40.073869,-105.928533,313,"Certified Current","https://www.gcbor.com","2023-04-03"],
+["M00000429","Grand Forks Area Assn of REALTORS","Grand Forks","ND",47.895383,-97.047713,280,"Certified Current","https://www.grandforksndrealestate.com","2020-01-31"],
+["M00000434","Grand Island Board of REALTORS","Grand Island","NE",40.954396,-98.388641,134,"Certified Current","https://www.usamls.net/grand_island","2023-02-21"],
+["M00000729","Grand Junction Area REALTOR Assn","Grand Junction","CO",39.115509,-108.5391,880,"Certified Current","https://www.gjrealtors.org","2022-12-02"],
+["M00000107","Great North MLS","Bismarck","ND",46.83039,-100.76862,750,"Certified Current","https://gnmls.realestate","2024-06-04"],
+["M00000441","Great Plains Regional MLS","Omaha","NE",41.269746,-96.099169,4637,"Certified Current","https://www.gprmls.com","2022-12-04"],
+["M00000586","Great Smoky Mountains Assn of REALTORS","Sevierville","TN",35.830686,-83.537899,1037,"Certified Current","https://www.gsmar.org","2024-10-15"],
+["M00000010","Greater Alabama MLS","Birmingham","AL",33.471065,-86.7803,5746,"Passed Current","https://www.greateralabamamls.com","2022-09-23"],
+["M00000084","Greater Antelope Valley Assn of REALTORS","Palmdale","CA",34.557727,-118.148387,2762,"Certified Current","https://www.gavar.org","2022-12-15"],
+["M00000470","Greater Binghamton Assn of REALTORS","Johnson City","NY",42.113645,-75.952574,460,"Certified Current","https://www.greaterbinghamtonmls.com","2023-04-06"],
+["M00000575","Greater Chattanooga REALTORS","Chattanooga","TN",35.078377,-85.266669,2493,"Certified Current","https://www.gcar.net","2023-02-13"],
+["M00000595","Greater El Paso Assn of REALTORS","El Paso","TX",31.781667,-106.403397,2697,"Certified Current","https://www.elpasotx.com","2023-02-13"],
+["M00000540","Greater Erie Board of REALTORS","Erie","PA",42.109663,-80.132789,713,"Certified Current","https://www.realestateerie.com","2023-02-20"],
+["M00000002","Greater Fairbanks Board of REALTORS","Fairbanks","AK",64.835082,-147.72639,267,"Uncertified","https://gfbr.org","2023-02-21"],
+["M00000764","Greater Fort Polk Area REALTORS","Rosepine","LA",30.926639,-93.281933,190,"Passed Current","https://www.greaterfortpolkarearealtors.com","2023-04-06"],
+["M00000561","Greater Greenville Assn of REALTORS","Greenville","SC",34.855218,-82.340163,4541,"Certified Current","https://www.ggar.com","2023-04-06"],
+["M00000840","Greater Kalamazoo Assn of REALTORS","Kalamazoo","MI",42.269538,-85.666454,877,"Certified Current","https://www.gkar.com","2023-04-06"],
+["M00000322","Greater Lansing Assn of REALTORS","Lansing","MI",42.681022,-84.508215,1080,"Certified Current","https://glaronline.com","2023-07-19"],
+["M00000534","Greater Lehigh Valley REALTORS","Bethlehem","PA",40.67584,-75.374648,3300,"Certified Current","https://www.greaterlehighvalleyrealtors.com","2023-04-06"],
+["M00000608","Greater McAllen Assn of REALTORS","McAllen","TX",26.23577,-98.20034,1349,"Certified Current","https://www.gmar.org","2022-09-30"],
+["M00000064","Greater Metropolitan Assn of REALTORS","Southfield","MI",42.49958,-83.28956,12561,"Certified Current","https://gmaronline.com","2025-05-23"],
+["M00000663","Greater Northwoods MLS","Woodruff","WI",45.893717,-89.696837,640,"Certified Current","https://northwoodsrealtors.org","2023-07-07"],
+["M00000294","Greater Owensboro REALTOR Assn","Owensboro","KY",37.745824,-87.095486,252,"Uncertified","https://owensbororealtors.com","2024-03-06"],
+["M00000233","Greater Pocatello Assn of REALTORS","Pocatello","ID",42.639474,-112.313836,514,"Uncertified","https://pocatelloarearealestate.com","2023-02-21"],
+["M00000503","Greater Portsmouth Area Board of REALTORS","Portsmouth","OH",38.75185,-82.876664,123,"Certified Current","https://www.usamls.net/portsmouth","2025-03-03"],
+["M00000319","Greater Regional Alliance of REALTORS","Grand Rapids","MI",42.95121,-85.56429,3597,"Certified Current","https://www.grar.com","2023-07-19"],
+["M00000536","Greater Scranton Board of REALTORS","Clarks Summit","PA",41.493577,-75.703156,693,"Certified Current","https://scrantonrealtors.org","2023-02-24"],
+["M00000621","Greater Tyler Assn of REALTORS","Tyler","TX",32.315918,-95.3417,1871,"Uncertified","https://www.gtar.com","2023-02-13"],
+["M00000669","Greenbrier Valley Board of REALTORS","Lewisburg","WV",37.802076,-80.445574,190,"Passed Current","https://www.gvbor.com","2023-07-10"],
+["M00000365","Greenville Area Board of REALTORS","Greenville","MS",33.384077,-91.053759,34,"Uncertified","https://www.mlsofgreenvillems.com","2023-07-19"],
+["M00000125","Greenwich Assn of REALTORS","Greenwich","CT",41.026924,-73.623914,1250,"Certified Current","https://www.greenwichrealtors.com","2023-04-06"],
+["M00000018","Gulf Coast MLS (Mobile Area)","Mobile","AL",30.676041,-88.109037,1700,"Certified Current","https://mobilerealtors.com","2023-04-06"],
+["M00000857","Harrisonburg-Rockingham Assn of REALTORS","Harrisonburg","VA",38.425602,-78.848419,410,"Uncertified","https://www.hrar.com","2023-03-02"],
+["M00000367","Hattiesburg Area Assn of REALTORS","Hattiesburg","MS",31.35582,-89.35165,620,"Certified Current","https://www.haar-ms.org","2022-12-06"],
+["M00000193","Hawaii Information Service (MLS Hawaii)","Honolulu","HI",21.317665,-157.869687,2020,"Certified Current","https://www.hawaiiinformation.com","2023-07-10"],
+["M00000283","Heart of Kentucky Assn of REALTORS","Elizabethtown","KY",37.763292,-85.901225,409,"Uncertified","","2023-03-02"],
+["M00000773","Heart of Missouri Board of REALTORS","Mexico","MO",39.066158,-91.832726,184,"Certified Current","https://www.hombor.com","2023-03-02"],
+["M00000731","Heartland Assn of REALTORS","Sebring","FL",27.47468,-81.47311,537,"Uncertified","https://www.heartlandrealtors.org","2023-07-19"],
+["M00000270","Heartland MLS","Leawood","KS",38.926375,-94.611287,12659,"Certified Current","https://www.heartlandmls.com","2022-04-27"],
+["M00000386","Helena Multiple Listing Service","Helena","MT",46.583497,-111.992176,501,"Uncertified","https://www.helenarealtors.com","2023-03-06"],
+["M00000286","Henderson Audubon Board of REALTORS","Henderson","KY",37.807173,-87.599052,44,"Uncertified","https://henderson-realtors.com","2023-04-06"],
+["M00000740","Henderson County Board of REALTORS","Eustace","TX",32.303038,-95.996552,199,"Certified Current","https://www.usamls.net/henderson","2023-03-06"],
+["M00000131","Hernando County Assn of REALTORS","Brooksville","FL",28.537766,-82.500644,1121,"Certified Current","https://www.hernandorealtors.com","2023-03-06"],
+["M00000194","HiCentral MLS (Honolulu Board of REALTORS)","Honolulu","HI",21.28215,-157.799531,6790,"Passed Current","https://www.hicentral.com","2022-12-04"],
+["M00000387","High Country Assn of REALTORS","Boone","NC",36.204744,-81.624191,1020,"Certified Current","https://www.highcountryrealtors.org","2023-04-06"],
+["M00000606","Highland Lakes Assn of REALTORS","Marble Falls","TX",30.61569,-98.2572,935,"Uncertified","https://www.highlandlakesrealtors.com","2023-07-19"],
+["M00000390","Highlands-Cashiers Board of REALTORS","Cashiers","NC",35.115942,-83.10612,289,"Passed Current","https://www.hcbor.net","2023-03-06"],
+["M00000842","Hillsdale County Board of REALTORS","Hillsdale","MI",41.919836,-84.632489,132,"Passed Current","https://www.hillsdalecountyboardofrealtors.org","2022-08-16"],
+["M00000754","Hinesville Area Board of REALTORS","Hinesville","GA",31.841221,-81.596709,236,"Certified Current","https://www.hinesvillerealtors.com","2023-07-10"],
+["M00000722","Hive MLS","Wilmington","NC",34.23591,-77.87457,13623,"Certified Current","https://www.hivemls.com","2024-11-13"],
+["M00000287","Hopkinsville-Christian & Todd County Assn of REALTORS","Hopkinsville","KY",36.849778,-87.471536,162,"Certified Current","https://www.hopkinsvillemls.org","2023-03-06"],
+["M00000029","Hot Springs Board of REALTORS","Hot Springs","AR",34.505523,-93.057134,430,"Uncertified","https://www.hotspringsboardofrealtors.com","2023-04-06"],
+["M00000599","Houston Assn of REALTORS","Houston","TX",29.728494,-95.434399,40002,"Certified Current","https://www.har.com","2022-10-13"],
+["M00000784","Hudson County MLS (Liberty Board of REALTORS)","Secaucus","NJ",40.782726,-74.077095,7355,"Certified Current","https://www.libertyboardofrealtors.com","2024-12-19"],
+["M00000479","Hudson Valley Catskills Region MLS","Kingston","NY",41.919876,-73.984671,1637,"Passed Current","https://ulstercountyboardofrealtors.com","2024-02-07"],
+["M00000059","Humboldt Assn of REALTORS","Eureka","CA",40.79121,-124.17687,459,"Certified Current","https://www.harealtors.com","2023-07-19"],
+["M00000794","Huntingdon County Board of REALTORS","Huntingdon","PA",40.515371,-77.975879,52,"Certified Current","https://www.usamls.net/huntingdoncounty","2020-01-06"],
+["M00000668","Huntington Board of REALTORS","Huntington","WV",38.411195,-82.342086,236,"Uncertified","https://huntingtonboardofrealtors.com","2023-04-06"],
+["M00000816","Huron Board of REALTORS","Brookings","SD",44.363995,-98.215822,32,"Certified Current","https://hbor.org","2023-03-06"],
+["M00000824","Idyllwild MLS","Idyllwild","CA",33.741769,-116.721444,43,"Passed Current","https://www.idyllwildassociationofrealtors.com","2023-04-06"],
+["M00000288","Imagine MLS (Bluegrass REALTORS)","Lexington","KY",38.007534,-84.523964,4062,"Certified Current","https://www.bluegrassrealtors.com","2025-01-16"],
+["M00000058","Imperial County Assn of REALTORS","El Centro","CA",32.793346,-115.576788,272,"Certified Current","","2023-03-06"],
+["M00000465","Incline Village REALTORS","Incline Village","NV",39.248249,-119.947479,192,"Certified Current","https://inclinevillagerealtors.com","2023-04-06"],
+["M00000256","Indiana Regional MLS","Lafayette","IN",40.424375,-86.881697,7125,"Certified Current","https://www.reindiana.com","2023-04-06"],
+["M00000225","Intermountain MLS","Boise","ID",43.61042,-116.31045,8700,"Certified Current","https://www.intermountainmls.com","2023-04-06"],
+["M00000206","Iowa City Area Assn of REALTORS","Coralville","IA",41.681095,-91.559726,475,"Uncertified","https://www.icaar.org","2023-07-10"],
+["M00000819","Iowa Great Lakes Board of REALTORS","Spirit Lake","IA",43.410276,-95.123918,208,"Certified Current","https://www.greatlakesboard.com","2023-07-10"],
+["M00000118","IRES MLS","Fort Collins","CO",40.566112,-105.078639,7250,"Certified Current","https://ires-net.com","2023-07-10"],
+["M00000626","Iron County Board of REALTORS","Cedar City","UT",37.657393,-113.082768,361,"Certified Current","https://www.ironcountybor.com","2023-07-10"],
+["M00000321","Jackson Multiple Listing Service","Jackson","MI",42.25769,-84.35429,350,"Certified Current","https://www.jacksonmihomes.com","2022-08-16"],
+["M00000353","Jefferson City Area Board of REALTORS","Jefferson City","MO",38.552256,-92.202277,375,"Certified Current","https://thelanding.missourirealtor.org/jcabor/home","2022-11-29"],
+["M00000715","Johnson County Board of REALTORS","Clarksville","AR",35.4829,-93.4772,51,"Uncertified","https://johnsoncountyboardofrealtors.com","2024-05-15"],
+["M00000667","Kanawha Valley Board of REALTORS","Charleston","WV",38.335254,-81.606966,600,"Certified Current","https://www.kvrealtors.com","2024-12-19"],
+["M00000265","Kansas High Plains Assn of REALTORS","Garden City","KS",37.990271,-100.853742,76,"Passed Current","https://www.kshighplainsmls.com","2026-02-09"],
+["M00000600","Kerrville Board of REALTORS","Kerrville","TX",30.051563,-99.142548,470,"Certified Current","https://www.usamls.net/kerrville","2020-01-06"],
+["M00000143","Key West Assn of REALTORS","Key West","FL",24.564522,-81.760048,603,"Passed Current","https://www.keywestrealtors.org","2023-03-13"],
+["M00000066","Kings County Board of REALTORS","Hanford","CA",36.333772,-119.64815,281,"Certified Current","https://www.kcbor.com","2024-05-15"],
+["M00000695","Klamath County Assn of REALTORS","Klamath Falls","OR",42.206907,-121.742179,220,"Certified Current","https://www.klamathcountyrealtors.com","2025-01-03"],
+["M00000510","Knox County Board of REALTORS","Mount Vernon","OH",40.374224,-82.507807,94,"Uncertified","https://www.knoxrealtors.com","2023-07-11"],
+["M00000182","Lake Country Board of REALTORS","Greensboro","GA",33.413219,-83.219725,293,"Uncertified","https://www.lakecountryrealtors.com","2023-03-13"],
+["M00000832","Lake Havasu Assn of REALTORS","Lake Havasu City","AZ",34.475463,-114.320547,834,"Certified Current","https://havasurealtors.com","2023-04-03"],
+["M00000004","Lake Martin Area Assn of REALTORS","Alexander City","AL",32.943521,-85.953549,240,"Certified Current","https://lmaar.org","2020-01-06"],
+["M00000361","Lake of the Ozarks Board of REALTORS","Sunrise Beach","MO",38.161329,-92.777575,156,"Certified Current","https://www.lobr.net","2023-07-11"],
+["M00000337","Lake Superior Area REALTORS","Duluth","MN",46.751033,-92.152518,868,"Certified Current","https://www.lsarealtors.com","2023-03-14"],
+["M00000584","Lakeway Area Assn of REALTORS","Morristown","TN",36.21558,-83.29569,632,"Certified Current","https://www.laar.realtor","2023-08-07"],
+["M00000500","Lancaster Board of REALTORS","Lancaster","OH",39.715128,-82.602956,300,"Uncertified","","2023-02-16"],
+["M00000697","Laramie Board of REALTORS MLS","Laramie","WY",41.310486,-105.593994,121,"Uncertified","https://laramieboardofrealtors.com","2025-01-30"],
+["M00000603","Laredo Assn of REALTORS","Laredo","TX",27.53813,-99.47277,604,"Uncertified","https://laredorealtors.org","2023-02-13"],
+["M00000466","Las Vegas REALTORS","Las Vegas","NV",36.072865,-115.241384,15500,"Certified Current","https://www.lasvegasrealtor.com","2023-04-03"],
+["M00000812","Lassen Assn of REALTORS","Susanville","CA",40.414752,-120.647845,57,"Uncertified","https://lassenaor.com","2023-03-14"],
+["M00000369","Laurel Board of REALTORS","Laurel","MS",31.69447,-89.12803,86,"Certified Current","https://www.laurelmsrealestate.com","2023-07-11"],
+["M00000269","Lawrence Board of REALTORS","Lawrence","KS",38.97223,-95.288033,332,"Certified Current","https://www.lawrencerealtor.com","2023-03-14"],
+["M00000516","Lawton Board of REALTORS","Lawton","OK",34.614853,-98.41262,242,"Certified Current","https://lawtonboardofrealtors.com","2025-01-03"],
+["M00000008","Lee County Assn of REALTORS","Auburn","AL",32.626587,-85.461499,764,"Certified Current","https://www.usamls.net/lee","2023-04-03"],
+["M00000616","LERA MLS (San Antonio Board of REALTORS)","San Antonio","TX",29.545289,-98.556564,15449,"Certified Current","https://realestate.sabor.com","2025-08-28"],
+["M00000783","Lincoln County Board of REALTORS","North Platte","NE",41.1366,-100.762032,68,"Uncertified","https://www.lincolncorealtors.com","2025-08-25"],
+["M00000201","LINK","Boston","MA",42.35754,-71.059113,null,"Passed Current","https://www.mylinkmls.com","2022-03-24"],
+["M00000394","Longleaf Pine REALTORS","Fayetteville","NC",35.046921,-78.917532,2660,"Certified Current","https://www.longleafpinerealtors.com","2023-03-30"],
+["M00000604","Longview Area Assn of REALTORS","Longview","TX",32.521164,-94.741298,909,"Uncertified","https://www.laaronline.org","2024-10-04"],
+["M00000557","Lowcountry Regional MLS (Beaufort-Jasper)","Beaufort","SC",32.406857,-80.655198,1147,"Certified Current","https://bjcrealtors.com","2025-09-04"],
+["M00000811","Lubbock Assn of REALTORS","Lubbock","TX",33.53051,-101.95818,1637,"Certified Current","https://www.lubbockrealtors.com","2023-07-20"],
+["M00000605","Lufkin Assn of REALTORS","Lufkin","TX",31.328701,-94.716109,312,"Passed Current","https://www.usamls.net/lufkin","2023-03-30"],
+["M00000545","Luzerne County Assn of REALTORS","Kingston","PA",41.265944,-75.891489,733,"Certified Current","https://luzernecar.org","2023-03-14"],
+["M00000641","Lynchburg Assn of REALTORS","Lynchburg","VA",37.352488,-79.229646,774,"Certified Current","https://lynchburgvarealtors.com","2025-11-24"],
+["M00000291","Madisonville Hopkins County Board of REALTORS","Madisonville","KY",37.289621,-87.50903,72,"Certified Current","https://www.usamls.net/madisonville","2023-03-30"],
+["M00000311","Maine Listings","South Portland","ME",43.640793,-70.329507,6500,"Certified Current","https://www.mainelistings.com","2023-07-20"],
+["M00000073","Mammoth Lakes Board of REALTORS MLS","Mammoth Lakes","CA",37.64398,-118.96676,208,"Uncertified","https://www.mlbor.com","2022-12-05"],
+["M00000501","Mansfield Assn of REALTORS","Mansfield","OH",40.728856,-82.537811,412,"Certified Current","https://www.mansfieldboard.com","2023-03-14"],
+["M00000147","Marathon and Lower Keys Assn of REALTORS","Marathon","FL",24.718146,-81.072185,338,"Certified Current","https://mlkar.com","2023-07-12"],
+["M00000148","Marco Island Area Assn of REALTORS","Marco Island","FL",25.939877,-81.716572,512,"Certified Current","https://marcorealtor.com","2023-03-30"],
+["M00000360","MARIS MLS","St. Louis","MO",38.609246,-90.454665,14100,"Certified Current","https://marismls.com","2020-12-30"],
+["M00000165","Martin County REALTORS of the Treasure Coast","Stuart","FL",27.164636,-80.228986,887,"Certified Current","https://martincountyrealtors.org","2025-01-24"],
+["M00000642","Martinsville Henry & Patrick Counties Assn of REALTORS","Martinsville","VA",36.68862,-79.86068,109,"Passed Current","https://mhpcar.com","2024-12-01"],
+["M00000694","Mason City Multiple Listing Service","Mason City","IA",43.15769,-93.180934,91,"Uncertified","https://masoncitymls.com","2022-08-15"],
+["M00000323","Mason Oceana Manistee Board of REALTORS","Ludington","MI",43.95523,-86.453176,207,"Certified Current","https://www.momboard.com","2023-03-30"],
+["M00000195","Maui MLS (REALTORS Assn of Maui)","Kahului","HI",20.883766,-156.451006,1928,"Certified Current","https://www.ramaui.com","2022-12-07"],
+["M00000583","Memphis Area Assn of REALTORS","Memphis","TN",35.099746,-89.850168,4334,"Certified Current","https://www.maar.org","2023-07-13"],
+["M00000672","Mercer-Tazewell County Board of REALTORS","Princeton","WV",37.366136,-81.102591,136,"Certified Current","https://www.mtcbrmls.com","2023-07-13"],
+["M00000717","Meridian Assn of REALTORS","Yankton","SD",42.94396,-97.37689,66,"Uncertified","http://meridian-realtors.com","2023-04-03"],
+["M00000662","Metro MLS","Wauwatosa","WI",43.060319,-88.056052,9536,"Certified Current","https://metromls.com","2023-03-30"],
+["M00000091","MetroList","Sacramento","CA",38.64385,-121.54807,25519,"Certified Current","https://www.metrolist.com","2024-06-04"],
+["M00000151","MIAMI REALTORS MLS","Miami","FL",25.8108,-80.267187,55000,"Certified Current","https://www.miamirealtors.com/mls","2023-03-30"],
+["M00000255","MIBOR Broker Listing Cooperative","Indianapolis","IN",39.792292,-86.158612,9616,"Certified Current","https://www.mibor.com","2023-03-30"],
+["M00000268","Mid-Kansas MLS (Prairie Land REALTORS)","Hutchinson","KS",38.066353,-97.931855,218,"Passed Current","https://prairielandrealtors.com","2024-12-19"],
+["M00000184","Middle Georgia MLS","Macon","GA",32.846466,-83.656981,725,"Certified Current","https://www.midgamls.com","2023-07-13"],
+["M00000243","Midwest Real Estate Data (MRED)","Lisle","IL",41.806764,-88.099357,49066,"Certified Current","https://ww2.mredllc.com","2023-07-27"],
+["M00000860","Milledgeville MLS","Milledgeville","GA",33.111179,-83.256943,345,"Passed Current","https://www.usamls.net/milledgeville","2023-03-14"],
+["M00000431","Minot Multiple Listing Service","Minot","ND",48.234279,-101.29641,261,"Uncertified","https://www.minotboardofrealtors.com","2023-03-14"],
+["M00000331","MiRealSource","Shelby Twp","MI",42.65478,-82.97442,6733,"Passed Current","https://www.mirealsource.com","2022-09-16"],
+["M00000815","Mitchell Board of REALTORS","Mitchell","SD",43.69591,-98.086401,40,"Passed Current","https://mitchellsdmls.com","2023-04-06"],
+["M00000830","MLS Now","Independence","OH",41.417432,-81.650907,14580,"Certified Current","https://mlsnow.com","2022-10-18"],
+["M00000494","MLS of Greater Cincinnati (CincyMLS)","Cincinnati","OH",39.214327,-84.438818,7400,"Certified Current","https://cincymls.com","2023-04-06"],
+["M00000563","MLS of Greenwood","Greenwood","SC",34.194137,-82.164191,175,"Certified Current","https://greenwoodassociationofrealtors.com","2023-04-06"],
+["M00000049","MLS of Southern Arizona","Tucson","AZ",32.251553,-110.935698,7152,"Certified Current","https://mlssaz.com","2023-04-06"],
+["M00000656","MLS of Yakima Assn of REALTORS","Yakima","WA",46.618377,-120.54534,446,"Passed Current","https://www.yakimaassociationofrealtors.com","2023-05-25"],
+["M00000306","MLS Property Information Network (MLS PIN)","Shrewsbury","MA",42.276044,-71.676069,45071,"Certified Current","https://www.mlspin.com","2023-04-06"],
+["M00000521","MLS Technology","Tulsa","OK",36.102253,-95.848134,6850,"Certified Current","https://www.tulsarealtors.com","2023-03-17"],
+["M00000070","MLS United","Ridgeland","MS",32.444469,-90.140648,6332,"Certified Current","https://www.mlsunited.com","2022-12-05"],
+["M00000101","MLSListings","Sunnyvale","CA",37.375254,-122.016247,16000,"Certified Current","https://www.mlslistings.com","2022-10-14"],
+["M00000519","MLSOK","Oklahoma City","OK",35.529067,-97.571204,7400,"Certified Current","https://www.okcmar.org","2022-12-02"],
+["M00000019","Monroe County Real Estate Assn","Beatrice","AL",31.74472,-87.21453,31,"Uncertified","https://www.usamls.net/monroe","2023-04-06"],
+["M00000383","Montana Regional MLS","Helena","MT",46.59179,-112.03701,3224,"Passed Current","https://www.406mls.com","2023-03-13"],
+["M00000020","Montgomery Area Assn of REALTORS","Montgomery","AL",32.359039,-86.229919,1857,"Certified Current","https://www.alamls.com","2023-06-06"],
+["M00000452","MOREMLS (Monmouth Ocean Regional REALTORS)","Tinton Falls","NJ",40.21883,-74.09427,10674,"Certified Current","https://monmouthoceanrealtors.com","2024-03-28"],
+["M00000755","Moultrie Board of REALTORS","Moultrie","GA",31.172696,-83.792379,45,"Certified Current","https://www.usamls.net/moultrie","2023-03-13"],
+["M00000573","Mount Rushmore Area Assn of REALTORS","Spearfish","SD",44.495518,-103.859877,417,"Uncertified","https://www.mountrushmoremls.com","2023-04-06"],
+["M00000231","Mountain Central Assn of REALTORS","McCall","ID",44.75196,-116.057987,573,"Certified Current","https://www.mountaincentralrealtors.com","2022-08-16"],
+["M00000033","Mountain Home MLS (North Central Board of REALTORS)","Mountain Home","AR",36.352139,-92.380803,230,"Uncertified","https://www.ncbor.realtor","2025-12-17"],
+["M00000408","Mountain Lakes Board of REALTORS","Murphy","NC",35.089038,-84.035507,249,"Certified Current","https://www.mountainlakesboardofrealtors.com","2023-07-14"],
+["M00000821","Multiple Listing Service of Bonita Springs-Estero","Bonita Springs","FL",26.367313,-81.798097,1300,"Uncertified","https://www.bonitaesterorealtors.com","2023-07-19"],
+["M00000568","Multiple Listing Service of Spartanburg","Spartanburg","SC",34.956946,-81.92264,1316,"Certified Current","https://www.spartanburgrealtors.com","2023-03-13"],
+["M00000732","Muscatine Multiple Listing Service","Muscatine","IA",41.442759,-91.028981,85,"Certified Current","https://www.muscatine-mls.com","2023-04-06"],
+["M00000080","My State MLS","Getzville","NY",43.035591,-78.749969,null,"Uncertified","https://www.mystatemls.com","2024-11-15"],
+["M00000609","Nacogdoches County Board of REALTORS","Nacogdoches","TX",31.62552,-94.65016,149,"Passed Current","https://www.nacogdochesrealtors.com","2024-05-15"],
+["M00000822","Naples Area Board of REALTORS","Naples","FL",26.212667,-81.788828,7469,"Certified Current","https://www.nabor.com","2022-12-02"],
+["M00000153","Navarre Area Board of REALTORS","Navarre","FL",30.403382,-86.888399,370,"Certified Current","https://www.navarrerealtors.org","2022-08-02"],
+["M00000438","Nebraska REALTORS Outstate","Lincoln","NE",41.144868,-102.976738,185,"Uncertified","https://www.nebraskarealtors.com","2023-07-20"],
+["M00000448","New Jersey MLS","Saddle Brook","NJ",40.91051,-74.10856,14325,"Uncertified","https://www.newjerseymls.com","2022-10-18"],
+["M00000462","New Mexico MLS","Santa Fe","NM",35.53634,-105.89036,935,"Certified Current","https://www.realestateofnewmexico.com","2023-07-27"],
+["M00000634","New River Valley Assn of REALTORS","Christiansburg","VA",37.170694,-80.42069,412,"Uncertified","https://www.nrvar.com","2022-12-05"],
+["M00000205","NoCoast MLS","West Des Moines","IA",41.563602,-93.789559,1173,"Certified Current","https://www.iowarealtors.com","2023-07-14"],
+["M00000743","Nolan County Board of REALTORS","Austin","TX",32.472636,-100.408128,47,"Certified Current","https://nolancountyrealtors.org","2023-07-14"],
+["M00000440","Norfolk Board of REALTORS","Norfolk","NE",42.049412,-97.425911,115,"Uncertified","","2023-07-14"],
+["M00000680","North Central Board of REALTORS (OK)","Ponca City","OK",36.718057,-97.075617,96,"Certified Current","https://www.northcentralboardofrealtors.com","2023-02-24"],
+["M00000374","North Central Mississippi REALTORS","Oxford","MS",34.330814,-89.483519,407,"Certified Current","https://www.usamls.net/ncentral","2023-03-13"],
+["M00000655","North Central Washington Assn of REALTORS","Wenatchee","WA",47.431714,-120.319309,456,"Uncertified","https://ncwar.org","2023-04-06"],
+["M00000666","North Central West Virginia REIN","Bridgeport","WV",39.299679,-80.275536,780,"Certified Current","https://findwvrealestate.com","2023-04-06"],
+["M00000144","North Florida MLS (Lake City Board of REALTORS)","Lake City","FL",30.183594,-82.697977,400,"Certified Current","https://northfloridarealtors.com","2024-12-19"],
+["M00000820","North Santa Barbara County Regional MLS","Santa Maria","CA",34.919631,-120.435538,1220,"Certified Current","https://www.smaor.com/mls","2023-07-14"],
+["M00000594","North Texas Real Estate Information Systems (NTREIS)","Dallas","TX",32.800748,-96.819412,54060,"Certified Current","https://ntreis.net","2025-03-21"],
+["M00000030","Northeast Arkansas Board of REALTORS","Jonesboro","AR",35.810171,-90.68919,558,"Certified Current","https://www.neabor.com","2023-03-14"],
+["M00000771","Northeast Central Assn of REALTORS","Kirksville","MO",40.193663,-92.583158,238,"Certified Current","https://www.usamls.net/northeastcentral","2023-07-14"],
+["M00000848","Northeast Georgia Board of REALTORS","Blairsville","GA",34.87343,-83.95777,735,"Certified Current","https://www.negboard.com","2022-08-16"],
+["M00000221","Northeast Iowa Regional Board of REALTORS","Waterloo","IA",42.460755,-92.318442,700,"Passed Current","https://www.homesofiowa.com","2023-04-06"],
+["M00000376","Northeast Mississippi Board of REALTORS","Tupelo","MS",34.254462,-88.701313,495,"Passed Current","https://nemsbd.com","2023-03-21"],
+["M00000515","Northeast Oklahoma Board of REALTORS","Grove","OK",36.595478,-94.740686,364,"Certified Current","https://neokrealtors.com","2022-08-16"],
+["M00000303","Northeast REALTORS of Louisiana","Monroe","LA",32.5152,-92.117099,715,"Certified Current","https://www.nelarealtors.com","2024-02-12"],
+["M00000835","Northeast South Dakota Assn of REALTORS","Watertown","SD",44.89082,-97.11803,131,"Certified Current","https://nesdrealtors.com","2023-04-06"],
+["M00000649","Northeast Washington Assn of REALTORS","Colville","WA",48.542432,-117.904306,111,"Certified Current","https://www.newarealtors.com","2024-02-09"],
+["M00000677","Northeast Wyoming REALTOR Alliance","Gillette","WY",44.277695,-105.49186,190,"Passed Current","https://newrealtoralliance.com","2024-02-09"],
+["M00000040","Northern Arizona Assn of REALTORS","Flagstaff","AZ",35.21792,-111.621224,1254,"Passed Current","https://www.nazrealtor.com","2023-03-14"],
+["M00000330","Northern Great Lakes REALTORS MLS","Traverse City","MI",44.752198,-85.595812,1600,"Certified Current","https://nglrmls.com","2023-03-01"],
+["M00000284","Northern Kentucky Multiple Listing Service","Florence","KY",39.009264,-84.62486,1710,"Certified Current","https://www.nkar.com","2023-03-01"],
+["M00000315","Northern Michigan MLS","Charlevoix","MI",45.366067,-85.113301,411,"Uncertified","https://ackrealtors.com","2023-03-14"],
+["M00000778","Northern Mountains of Pennsylvania MLS","Lemoyne","PA",41.791495,-76.502124,320,"Certified Current","https://nmpamls.com","2023-07-14"],
+["M00000632","Northern Neck Assn of REALTORS","Callao","VA",37.961716,-76.577422,152,"Certified Current","https://www.usamls.net/northernneck","2023-03-14"],
+["M00000467","Northern Nevada Regional MLS","Reno","NV",39.47411,-119.79988,4000,"Certified Current","https://nnrmls.com","2023-07-27"],
+["M00000345","NorthstarMLS","Apple Valley","MN",44.734153,-93.220526,23549,"Certified Current","https://www.northstarmls.com","2025-11-07"],
+["M00000818","NorthWest Illinois Alliance of REALTORS","Rockford","IL",42.25848,-88.96341,1223,"Uncertified","https://northwestillinoisalliance.realtor","2022-12-01"],
+["M00000259","Northwest Indiana REALTORS Assn","Merrillville","IN",41.463013,-87.32724,3411,"Certified Current","https://nira.realtor","2025-04-06"],
+["M00000224","Northwest Iowa Regional Board of REALTORS","Sioux City","IA",42.496531,-96.397912,515,"Uncertified","https://www.nwiabor.com","2023-03-14"],
+["M00000650","Northwest Multiple Listing Service (NWMLS)","Kirkland","WA",47.707291,-122.18818,34864,"Certified Current","https://www.nwmls.com","2023-03-27"],
+["M00000505","Northwest Ohio Real Estate Information Service (NORIS)","Maumee","OH",41.57435,-83.68045,2135,"Certified Current","https://nworealtors.com","2023-03-12"],
+["M00000514","Northwest Oklahoma Assn of REALTORS","Enid","OK",36.39933,-97.875679,199,"Certified Current","https://www.nwokrealtors.com","2023-06-09"],
+["M00000676","Northwest Wyoming Board of REALTORS","Cody","WY",44.52634,-109.05653,185,"Uncertified","https://nwbor.com","2023-04-06"],
+["M00000658","Northwestern Wisconsin Multiple Listing Service","Eau Claire","WI",44.782464,-91.461168,1253,"Certified Current","https://www.ranww.org","2023-12-07"],
+["M00000845","NY State MLS","Getzville","NY",43.035591,-78.749969,null,"Passed Current","https://www.nystatemls.com","2021-03-16"],
+["M00000736","Odessa Board of REALTORS","Odessa","TX",31.880178,-102.324342,895,"Certified Current","https://www.odessarealtors.com","2023-04-06"],
+["M00000078","Ojai Valley Board of REALTORS","Ojai","CA",34.448189,-119.243746,84,"Certified Current","http://www.ojaivalleymls.com","2023-03-15"],
+["M00000651","Olympic Listing Service","Sequim","WA",48.080578,-123.102994,325,"Uncertified","https://www.sequimrealtors.org","2023-07-14"],
+["M00000489","OneKey MLS","Farmingdale","NY",40.71841,-73.42664,46739,"Certified Current","https://www.onekeymlsny.com","2023-11-03"],
+["M00000529","Oregon Coast Multiple Listing Service","Lincoln City","OR",44.982575,-124.007435,600,"Uncertified","https://www.oregoncoastmls.com","2025-07-10"],
+["M00000455","Otero County Assn of REALTORS","Alamogordo","NM",32.899448,-105.949908,152,"Certified Current","https://www.ocar-nm.org","2024-12-05"],
+["M00000409","Outer Banks Assn of REALTORS","Nags Head","NC",35.993327,-75.647318,943,"Certified Current","https://outerbanksrealtors.com","2022-09-26"],
+["M00000354","Ozark Gateway Assn of REALTORS","Joplin","MO",37.083123,-94.486486,730,"Certified Current","https://thelanding.missourirealtor.org/ogar/home","2023-03-31"],
+["M00000648","Pacific Regional MLS","Kennewick","WA",46.210032,-119.216989,1600,"Certified Current","https://pacmls.com","2023-03-01"],
+["M00000738","Palestine Assn of REALTORS","Austin","TX",31.763507,-95.634597,133,"Certified Current","https://palestinerealtors.org","2023-07-14"],
+["M00000158","Palm Beach Board of REALTORS","Palm Beach","FL",26.70517,-80.034933,899,"Certified Current","https://www.pbbor.com","2023-03-31"],
+["M00000837","Pampa Assn of REALTORS","Pampa","TX",35.562064,-100.971417,33,"Passed Current","https://pampaboard.tripod.com","2023-03-31"],
+["M00000627","Park City Board of REALTORS","Park City","UT",40.662139,-111.497335,1520,"Certified Current","https://www.parkcityrealtors.com","2023-03-01"],
+["M00000375","Pearl River County Board of REALTORS","Picayune","MS",30.527897,-89.689021,225,"Certified Current","https://www.prcmls.com","2023-03-31"],
+["M00000703","Pee Dee REALTOR Assn","Florence","SC",34.16688,-79.828548,615,"Passed Current","https://www.peedeerealtors.com","2020-01-06"],
+["M00000161","Pensacola Assn of REALTORS","Pensacola","FL",30.40732,-87.21579,3322,"Certified Current","https://pensacolamls.com","2023-07-14"],
+["M00000737","Permian Basin Board of REALTORS","Midland","TX",32.01056,-102.15375,720,"Certified Current","https://www.usamls.net/permianbasin","2023-07-28"],
+["M00000800","Pierre Area Multiple Listing Service","Blunt","SD",44.43719,-99.926952,62,"Certified Current","https://www.centralsdrealtors.com","2024-12-18"],
+["M00000023","Pike County Real Estate Assn","Troy","AL",31.869128,-85.966268,50,"Certified Current","https://www.usamls.net/pike","2021-12-16"],
+["M00000721","Pike/Wayne Assn of REALTORS","Hawley","PA",41.471829,-75.17208,497,"Certified Current","https://pikewaynerealtors.org","2022-12-13"],
+["M00000111","Pikes Peak REALTOR Services","Colorado Springs","CO",38.840598,-104.823676,5299,"Certified Current","https://ppar.com","2022-12-13"],
+["M00000744","Plainview Assn of REALTORS","Plainview","TX",34.068903,-101.826997,62,"Certified Current","https://www.plainview-realtors.net","2023-03-31"],
+["M00000701","Plumas Assn of REALTORS","Quincy","CA",39.933802,-120.899944,265,"Uncertified","https://plumasrealtors.com","2023-07-14"],
+["M00000552","Pocono Mountains Assn of REALTORS","Stroudsburg","PA",40.975816,-75.24506,1123,"Certified Current","https://poconorealtors.com","2022-10-24"],
+["M00000044","Prescott Area Assn of REALTORS","Prescott","AZ",34.545351,-112.39947,2200,"Certified Current","https://www.paar.org","2022-08-16"],
+["M00000445","PrimeMLS","Concord","NH",43.216305,-71.537588,11300,"Certified Current","https://primemls.com","2023-04-04"],
+["M00000120","Pueblo Assn of REALTORS","Pueblo","CO",38.308339,-104.640031,1118,"Certified Current","https://www.usamls.net/pueblo","2022-08-16"],
+["M00000069","Quest MLS","New Braunfels","TX",29.70223,-98.15657,null,"Certified Current","https://questmls.com","2023-12-12"],
+["M00000827","Randolph County Board of REALTORS","Moberly","MO",39.425513,-92.428348,62,"Certified Current","https://thelanding.missourirealtor.org/rcbr/home","2023-03-16"],
+["M00000335","Range Assn of REALTORS","Britt","MN",47.647636,-92.663292,177,"Uncertified","https://www.raor.org","2023-03-16"],
+["M00000646","Real Estate Information Network (REIN)","Virginia Beach","VA",36.836257,-76.136477,10000,"Passed Current","https://www.reinmls.com","2023-07-28"],
+["M00000281","Real Estate Information Services (Southern Kentucky)","Bowling Green","KY",36.969509,-86.438892,823,"Uncertified","https://raskrealtors.com","2023-04-04"],
+["M00000316","Realcomp","Farmington Hills","MI",42.496312,-83.379819,15000,"Certified Current","https://realcomp.moveinmichigan.com","2024-10-08"],
+["M00000141","realMLS (Northeast Florida MLS)","Jacksonville","FL",30.1916,-81.550774,10750,"Certified Current","https://www.realmls.com","2022-10-19"],
+["M00000343","REALTOR Assn of Southern Minnesota","North Mankato","MN",44.192271,-94.05095,447,"Uncertified","https://rasminfo.com","2023-03-16"],
+["M00000572","REALTOR Assn of the Sioux Empire","Sioux Falls","SD",43.499258,-96.756836,917,"Certified Current","https://rase-inc.org","2023-03-16"],
+["M00000145","REALTORS Assn of Citrus County","Lecanto","FL",28.852746,-82.474138,831,"Certified Current","https://raccfl.com","2023-04-04"],
+["M00000169","REALTORS Assn of Indian River County","Vero Beach","FL",27.71573,-80.419546,1030,"Certified Current","https://rairc.com","2023-04-04"],
+["M00000657","REALTORS Assn of Northeast Wisconsin","Appleton","WI",44.416326,-88.464873,2468,"Certified Current","https://www.ranw.org","2023-04-04"],
+["M00000176","REALTORS of Greater Augusta","Augusta","GA",33.481523,-82.099744,1972,"Passed Current","https://www.augustarealtors.com","2023-08-02"],
+["M00000436","REALTORS of Greater Mid-Nebraska","Kearney","NE",40.813603,-99.075787,250,"Uncertified","","2025-11-25"],
+["M00000574","Realtracs","Brentwood","TN",36.040129,-86.768372,18000,"Certified Current","https://www.realtracs.com","2022-08-15"],
+["M00000116","REcolorado","Greenwood Village","CO",39.599501,-104.886571,27117,"Passed Current","https://www.recolorado.com","2022-09-26"],
+["M00000704","Reelfoot Regional Assn of REALTORS","Union City","TN",36.354384,-89.149881,110,"Certified Current","https://www.rrar.org","2022-10-03"],
+["M00000531","Regional Multiple Listing Service (RMLS)","Portland","OR",45.403354,-122.749815,14894,"Certified Current","https://rmlscentral.com","2023-04-04"],
+["M00000564","REsides","Hilton Head Island","SC",32.164033,-80.767726,1900,"Certified Current","https://www.resides.io","2022-09-30"],
+["M00000598","Rio Grande Valley MLS (Harlingen Board of REALTORS)","Harlingen","TX",26.189457,-97.693247,1041,"Passed Current","https://www.usamls.net/harlingen","2023-04-04"],
+["M00000577","River Counties Assn of REALTORS","Cleveland","TN",35.196141,-84.8918,570,"Certified Current","https://rivercounties.com","2023-04-04"],
+["M00000852","RMLS Alliance","Springfield","IL",39.7611,-89.71216,3054,"Certified Current","https://www.paarealtors.com","2023-08-03"],
+["M00000065","ROAM MLS","Baton Rouge","LA",30.36406,-91.06031,13457,"Certified Current","https://roammls.org","2024-04-26"],
+["M00000644","Roanoke Valley Assn of REALTORS","Roanoke","VA",37.227066,-79.982406,1680,"Certified Current","https://www.rvar.com","2023-04-04"],
+["M00000412","Roanoke Valley Lake Gaston Board of REALTORS","Roanoke Rapids","NC",36.46154,-77.65415,253,"Certified Current","https://www.usamls.net/roanokerapids","2023-04-06"],
+["M00000640","Rockbridge Highlands REALTORS","Lexington","VA",37.796227,-79.425484,161,"Passed Current","https://rockbridgehighlandsrealtors.com","2023-04-06"],
+["M00000614","Rockport Area Assn of REALTORS","Rockport","TX",28.054252,-97.042877,189,"Certified Current","https://www.usamls.net/rockport","2023-03-17"],
+["M00000110","Royal Gorge Assn of REALTORS","Canon City","CO",38.443254,-105.240305,364,"Passed Current","https://www.royalgorgerealtors.org","2023-03-17"],
+["M00000460","Ruidoso/Lincoln County Assn of REALTORS","Ruidoso","NM",33.345781,-105.674976,209,"Certified Current","https://www.rlcar.org","2022-08-16"],
+["M00000615","San Angelo Assn of REALTORS","San Angelo","TX",31.455045,-100.462401,412,"Certified Current","https://www.sanangelorealtors.org","2023-07-14"],
+["M00000846","San Diego MLS","San Diego","CA",32.830399,-117.14516,9999,"Certified Current","https://www.sdmls.com","2025-11-24"],
+["M00000094","San Francisco Assn of REALTORS MLS","San Francisco","CA",37.777898,-122.421672,5030,"Certified Current","https://my.sfrealtors.com","2022-10-13"],
+["M00000785","San Juan County Board of REALTORS","Farmington","NM",36.748374,-108.173124,231,"Certified Current","https://www.sanjuancountyboardofrealtors.com","2023-03-17"],
+["M00000163","Sanibel & Captiva Islands Assn of REALTORS","Sanibel","FL",26.43657,-82.07593,235,"Certified Current","","2023-04-06"],
+["M00000096","Santa Barbara Multiple Listing Service","Santa Barbara","CA",34.424238,-119.708993,1650,"Certified Current","https://www.sbaor.org","2023-04-06"],
+["M00000461","Santa Fe Assn of REALTORS","Santa Fe","NM",35.695485,-105.951892,953,"Certified Current","https://sfar.com","2022-09-26"],
+["M00000751","Savannah Multi-List Corporation","Savannah","GA",32.010933,-81.108993,2021,"Certified Current","https://savannaharearealtors.com","2022-10-14"],
+["M00000493","Scioto Valley REALTORS","Chillicothe","OH",39.34994,-82.979204,237,"Certified Current","https://www.usamls.net/sciotovalley","2023-04-06"],
+["M00000235","Selkirk Assn of REALTORS","Sandpoint","ID",48.269684,-116.560968,295,"Certified Current","https://www.selkirkaor.com","2023-03-12"],
+["M00000090","Shasta Assn of REALTORS","Redding","CA",40.574484,-122.35663,1026,"Certified Current","https://www.shastamls.com","2023-04-06"],
+["M00000804","Sheridan County Board of REALTORS","Sheridan","WY",44.797421,-106.953157,230,"Certified Current","https://scborwy.com","2023-04-06"],
+["M00000463","Silver City Regional Multiple Listing Service","Silver City","NM",32.785127,-108.260897,75,"Certified Current","https://www.silvercityrealtors.org","2022-08-16"],
+["M00000076","Siskiyou Assn of REALTORS","Mount Shasta","CA",41.305911,-122.309741,147,"Uncertified","https://siskiyouaor.com","2023-03-17"],
+["M00000127","SmartMLS","Milford","CT",41.22702,-73.03231,19925,"Passed Current","https://smartmls.com","2021-03-05"],
+["M00000228","Snake River Regional MLS","Ammon","ID",43.483791,-111.969249,1200,"Certified Current","https://www.snakerivermls.com","2023-03-17"],
+["M00000637","South Central Assn of REALTORS","Farmville","VA",37.30095,-78.39004,121,"Passed Current","https://www.usamls.net/southcentral","2023-07-19"],
+["M00000277","South Central Kansas MLS","Wichita","KS",37.680041,-97.339385,2501,"Passed Current","https://sckrealtors.com","2025-01-16"],
+["M00000285","South Central Kentucky Assn of REALTORS","Glasgow","KY",36.974943,-85.937542,127,"Certified Current","","2023-04-06"],
+["M00000659","South Central Wisconsin Multiple Listing Service","Madison","WI",43.137867,-89.301078,4302,"Certified Current","https://scwmls.com","2023-04-06"],
+["M00000756","South Georgia MLS","Valdosta","GA",30.847126,-83.298887,393,"Certified Current","https://www.valdostaboardofrealtors.com","2023-03-07"],
+["M00000446","South Jersey Shore Regional MLS","Egg Harbor Township","NJ",39.421455,-74.589215,3085,"Uncertified","https://acrealestate.org","2023-07-14"],
+["M00000619","South Padre Island Board of REALTORS","South Padre Island","TX",26.10369,-97.16469,146,"Certified Current","https://www.spirealtors.com","2023-04-06"],
+["M00000100","South Tahoe Assn of REALTORS","South Lake Tahoe","CA",38.92091,-119.995051,640,"Certified Current","https://www.staor.org","2025-11-24"],
+["M00000593","South Texas MLS (Corpus Christi Assn of REALTORS)","Corpus Christi","TX",27.732089,-97.385169,2300,"Certified Current","https://www.ccaronline.com","2024-12-19"],
+["M00000003","Southeast Alaska MLS","Juneau","AK",58.373561,-134.523946,137,"Uncertified","https://seabr907.com","2023-03-17"],
+["M00000191","Southeast Georgia Multiple Listing Service","Waycross","GA",31.21325,-82.36094,142,"Uncertified","https://www.usamls.net/southeastgeorgia","2023-05-23"],
+["M00000251","Southeastern Indiana Board of REALTORS","Aurora","IN",39.054571,-84.900278,370,"Certified Current","https://seibr.com","2023-04-06"],
+["M00000252","Southern Indiana REALTORS Assn","Clarksville","IN",38.303901,-85.779312,1100,"Certified Current","https://www.sira.realestate","2025-11-12"],
+["M00000748","Southern Missouri Regional MLS","Springfield","MO",37.25807,-93.343673,4000,"Certified Current","https://gsbor.com","2022-09-26"],
+["M00000457","Southern New Mexico MLS (Las Cruces)","Las Cruces","NM",32.296842,-106.779615,731,"Certified Current","https://www.lascrucesassociationofrealtors.com","2023-03-13"],
+["M00000530","Southern Oregon MLS","Medford","OR",42.321514,-122.864632,1413,"Certified Current","https://rvar.realtor","2023-04-06"],
+["M00000817","Southern Piedmont Land & Lake Assn of REALTORS","Clarksville","VA",36.5711,-79.02956,60,"Passed Current","https://www.usamls.net/southernvirginia","2023-07-19"],
+["M00000727","Southern Sierra MLS","Ridgecrest","CA",35.638817,-117.679253,123,"Uncertified","https://www.ridgecrestaor.com","2023-04-06"],
+["M00000179","Southwest Georgia Board of REALTORS","Bainbridge","GA",30.90915,-84.57558,319,"Certified Current","https://www.swgamls.com","2023-03-17"],
+["M00000207","Southwest Iowa Assn of REALTORS","Council Bluffs","IA",41.256875,-95.856159,481,"Certified Current","https://swiar.org","2023-04-06"],
+["M00000763","Southwest Kansas MLS","Liberal","KS",37.040411,-100.922005,821,"Uncertified","http://www.southwestkansasmls.com","2022-08-02"],
+["M00000301","Southwest Louisiana Assn of REALTORS","Lake Charles","LA",30.209166,-93.231634,753,"Certified Current","https://www.swlar.com","2025-07-15"],
+["M00000370","Southwest Mississippi Board of REALTORS","McComb","MS",31.17494,-90.403987,143,"Certified Current","https://www.usamls.net/southwestms","2023-03-13"],
+["M00000456","Southwest MLS (Greater Albuquerque)","Albuquerque","NM",35.10253,-106.628362,4300,"Certified Current","https://www.gaar.com","2022-12-04"],
+["M00000630","Southwest Virginia Assn of REALTORS","Abingdon","VA",36.70494,-81.99967,681,"Passed Current","https://www.swvar.com","2023-07-19"],
+["M00000329","Southwestern Michigan Assn of REALTORS","St. Joseph","MI",42.07862,-86.50346,907,"Certified Current","https://swmar.com","2023-08-03"],
+["M00000150","Space Coast MLS","Palm Shores","FL",28.204049,-80.669691,5799,"Certified Current","https://www.spacecoastmls.com/home","2022-12-02"],
+["M00000810","Spanish Peaks MLS","La Veta","CO",37.44392,-105.0548,155,"Certified Current","https://spanishpeaksmls.com","2023-03-20"],
+["M00000653","Spokane Assn of REALTORS","Spokane","WA",47.67554,-117.436777,2700,"Certified Current","https://www.spokanerealtor.com","2023-08-03"],
+["M00000164","St. Augustine and St. Johns County Board of REALTORS","St. Augustine","FL",29.868069,-81.332281,1050,"Uncertified","https://sasjcrealtors.com","2023-04-06"],
+["M00000839","St. Joseph County Assn of REALTORS","Centreville","MI",41.92338,-85.52832,127,"Certified Current","https://sjcarhomes.com","2023-04-06"],
+["M00000472","St. Lawrence County Board of REALTORS","Watertown","NY",43.976941,-75.912147,200,"Uncertified","https://slcmls.com","2023-07-15"],
+["M00000554","State-Wide MLS","Warwick","RI",41.757399,-71.433325,6800,"Certified Current","https://www.rirealtors.org/mls","2022-08-16"],
+["M00000487","Staten Island Multiple Listing Service","Staten Island","NY",40.611579,-74.177675,2275,"Certified Current","https://www.siborrealtors.com","2023-03-13"],
+["M00000146","Stellar MLS","Altamonte Springs","FL",28.65985,-81.36582,86000,"Certified Current","https://www.stellarmls.com","2023-12-07"],
+["M00000520","Stillwater Board of REALTORS","Stillwater","OK",36.116567,-97.056966,280,"Uncertified","https://stillwaterboardofrealtors.com","2023-04-06"],
+["M00000012","Strategic MLS Alliance (Cullman/Shoals Area)","Florence","AL",34.80872,-87.63348,680,"Certified Current","","2024-05-29"],
+["M00000569","Sumter Board of REALTORS","Sumter","SC",33.9201,-80.34043,425,"Certified Current","https://www.usamls.net/sumter","2023-07-18"],
+["M00000229","Sun Valley Board of REALTORS","Ketchum","ID",43.678188,-114.362424,370,"Passed Current","https://sunvalleyrealtors.org","2023-03-20"],
+["M00000276","Sunflower Assn of REALTORS","Topeka","KS",39.00095,-95.70343,776,"Passed Current","https://www.sunflowerrealtors.com","2023-08-03"],
+["M00000079","Tahoe Sierra Board of REALTORS","Truckee","CA",39.31404,-120.3416,914,"Uncertified","http://www.tahoemls.com","2023-07-18"],
+["M00000464","Taos County Assn of REALTORS","Taos","NM",36.3819,-105.597658,208,"Passed Current","https://taoscountyassociationofrealtors.com","2023-03-20"],
+["M00000102","Tehachapi Area Assn of REALTORS","Tehachapi","CA",35.12001,-118.49326,147,"Certified Current","https://tehachapiaor.com","2023-07-18"],
+["M00000089","Tehama County Assn of REALTORS","Red Bluff","CA",40.174911,-122.243201,150,"Uncertified","http://tcaor.com","2023-01-13"],
+["M00000122","Telluride Assn of REALTORS","Telluride","CO",37.93765,-107.820879,236,"Passed Current","https://tellurideassociationrealtors.com","2023-03-13"],
+["M00000585","Tennessee Valley Assn of REALTORS","Paris","TN",36.32337,-88.27507,226,"Certified Current","http://www.tnvalleyrealtors.net","2023-11-09"],
+["M00000580","Tennessee/Virginia Regional MLS","Johnson City","TN",36.40154,-82.48335,2051,"Certified Current","https://tvrmls.com","2023-07-18"],
+["M00000261","Terre Haute Area Assn of REALTORS","Terre Haute","IN",39.448674,-87.397345,317,"Certified Current","https://thaar.com","2023-03-13"],
+["M00000678","Teton Board of REALTORS","Jackson","WY",43.474,-110.75925,632,"Certified Current","https://www.tbor.org","2023-03-14"],
+["M00000037","Texarkana Board of REALTORS","Texarkana","AR",33.46101,-94.0248,290,"Uncertified","http://www.texarkanarealtors.com","2023-07-19"],
+["M00000071","The MLS","Beverly Hills","CA",34.06413,-118.37333,17000,"Certified Current","https://www.themls.com","2023-07-19"],
+["M00000186","Thomasville Area Board of REALTORS","Thomasville","GA",30.83845,-83.98049,151,"Passed Current","https://thomasvilleareaboardofrealtors.com","2023-07-19"],
+["M00000187","Tiftarea Board of REALTORS","Tifton","GA",31.465466,-83.511146,104,"Certified Current","https://www.usamls.net/tift_area","2023-03-28"],
+["M00000855","Tillamook Board of REALTORS","Tillamook","OR",45.461952,-123.740874,101,"Certified Current","https://www.tillamookrealtors.com","2022-12-02"],
+["M00000400","Triad MLS","Greensboro","NC",36.05401,-79.95091,6639,"Certified Current","https://www.triadmls.com","2022-08-15"],
+["M00000726","Trinity County Assn of REALTORS","Weaverville","CA",40.73456,-122.93462,44,"Uncertified","https://www.trinitycountyaor.com","2023-07-19"],
+["M00000104","Tulare County MLS","Visalia","CA",36.330598,-119.265754,1600,"Certified Current","https://www.tcmls.org","2022-09-23"],
+["M00000099","Tuolumne County Assn of REALTORS","Sonora","CA",37.967037,-120.333952,535,"Uncertified","https://tcrealtors.org","2020-01-06"],
+["M00000856","TXLS","Round Top","TX",30.041719,-96.711265,259,"Uncertified","https://txls.com","2022-08-02"],
+["M00000589","Unlock MLS (Austin Board of REALTORS)","Austin","TX",30.376395,-97.762836,19360,"Certified Current","https://www.abor.com","2023-08-07"],
+["M00000579","Upper Cumberland Assn of REALTORS","Cookeville","TN",36.148877,-85.479094,499,"Certified Current","https://www.ucar.org","2023-03-28"],
+["M00000486","Upstate New York Real Estate Information Services","Rochester","NY",43.098843,-77.627297,4547,"Passed Current","https://www.grar.org/unyreis","2022-10-14"],
+["M00000628","UtahRealEstate.com","Sandy","UT",40.576272,-111.898426,18862,"Certified Current","https://www.utahrealestate.com","2023-08-03"],
+["M00000114","Vail Multi-List Service","Edwards","CO",39.642466,-106.589791,815,"Certified Current","https://www.vbr.net","2023-08-03"],
+["M00000017","ValleyMLS.com","Huntsville","AL",34.731381,-86.590688,3885,"Certified Current","https://www.valleymls.com","2022-08-15"],
+["M00000377","Vicksburg-Warren County Board of REALTORS","Vicksburg","MS",32.340512,-90.862919,98,"Passed Current","https://www.vicksburgrealtors.com","2023-03-13"],
+["M00000711","Walker Area Assn of REALTORS","Jasper","AL",33.83378,-87.27689,230,"Uncertified","https://www.walkerarearealtors.com","2024-05-15"],
+["M00000798","Warren County Board of REALTORS","Lemoyne","PA",41.84407,-79.143028,54,"Uncertified","http://www.northwestpahomes.com","2023-07-19"],
+["M00000629","Washington County Board of REALTORS","St. George","UT",37.08123,-113.60636,2200,"Certified Current","https://washingtoncountyrealtors.com","2024-05-28"],
+["M00000317","Water Wonderland Board of REALTORS","Gaylord","MI",45.027797,-84.676999,621,"Passed Current","https://www.waterwonderlandboard.com","2024-05-15"],
+["M00000024","West Alabama Multiple Listing Service","Tuscaloosa","AL",33.206312,-87.561184,784,"Certified Current","https://www.tuscaloosamls.com","2022-10-06"],
+["M00000799","West Branch Valley Assn of REALTORS","Williamsport","PA",41.24175,-76.99697,317,"Certified Current","https://www.wbvrealestate.com","2023-05-23"],
+["M00000838","West Central Assn of REALTORS (MI)","Big Rapids","MI",43.61822,-85.484018,333,"Passed Current","https://westcentralaor.org","2022-12-02"],
+["M00000357","West Central Assn of REALTORS (MO)","Sedalia","MO",38.69964,-93.250615,434,"Certified Current","https://thelanding.missourirealtor.org/wcar/home","2023-03-20"],
+["M00000735","West Central Assn of REALTORS (OH)","Lima","OH",40.735778,-84.14697,523,"Passed Current","https://wcare.net","2023-03-28"],
+["M00000171","West Metro Board of REALTORS","Carrollton","GA",33.581275,-85.063633,460,"Passed Current","https://www.westmetrorealtors.com","2022-08-02"],
+["M00000318","West Michigan Lakeshore Assn of REALTORS","Grand Haven","MI",43.003321,-86.203873,1037,"Certified Current","https://www.wmlar.com","2022-08-16"],
+["M00000549","West Penn Multi-List","Pittsburgh","PA",40.57019,-80.0371,8432,"Certified Current","https://www.westpennmls.com","2023-07-06"],
+["M00000039","Western Arizona REALTOR Data Exchange (WARDEX)","Bullhead City","AZ",35.0539,-114.589028,1045,"Certified Current","https://www.wardexre.com","2023-03-28"],
+["M00000761","Western Kansas Assn of REALTORS","Hays","KS",38.888978,-99.316962,84,"Uncertified","https://wksrealtors.com","2025-01-16"],
+["M00000280","Western Kentucky Regional MLS","Mayfield","KY",36.70789,-88.65429,551,"Certified Current","","2023-07-06"],
+["M00000442","Western Nebraska Board of REALTORS","Scottsbluff","NE",41.851012,-103.70726,81,"Uncertified","","2023-03-14"],
+["M00000469","Western New York Real Estate Information Services","Amherst","NY",43.014719,-78.779778,3500,"Certified Current","https://www.bnar.org","2023-03-28"],
+["M00000506","Western Regional Information Systems & Technology (WRIST)","Troy","OH",40.051333,-84.191779,1500,"Certified Current","https://www.westohiorealestate.com","2024-05-15"],
+["M00000853","Western River Valley Board of REALTORS","Fort Smith","AR",35.32634,-94.37062,781,"Uncertified","https://wrvbor.com","2023-03-13"],
+["M00000556","Western Upstate Multiple Listing Service","Anderson","SC",34.542323,-82.69464,2670,"Passed Current","https://www.westernupstatemls.com","2023-03-28"],
+["M00000673","Wheeling Board of REALTORS","Wheeling","WV",40.078926,-80.68743,154,"Passed Current","https://www.wheelingwvrealtors.com","2025-01-03"],
+["M00000042","White Mountain Assn of REALTORS","Lakeside","AZ",34.17029,-110.00299,922,"Certified Current","https://www.wmaronline.com","2023-03-13"],
+["M00000625","Wichita Falls Assn of REALTORS","Wichita Falls","TX",33.871685,-98.546638,371,"Uncertified","https://www.wfar.com","2023-03-28"],
+["M00000532","Willamette Valley MLS","Salem","OR",44.905318,-123.009556,3528,"Passed Current","https://www.wvmls.com","2023-03-13"],
+["M00000858","Williamsburg Multiple Listing Service","Williamsburg","VA",37.309067,-76.752649,915,"Certified Current","https://waarealtor.com","2023-03-28"],
+["M00000014","Wiregrass REALTORS","Enterprise","AL",31.30145,-85.83579,263,"Passed Current","https://www.wiregrassboardofrealtors.com","2023-01-05"],
+["M00000679","Wyoming MLS","Casper","WY",42.860605,-106.336769,730,"Uncertified","https://www.wyomingmls.com","2023-03-28"],
+["M00000050","Yuma Assn of REALTORS","Yuma","AZ",32.72177,-114.62107,760,"Passed Current","https://www.yumaaor.com","2024-05-07"]
+];
+
+// [0]=id [1]=name [2]=city [3]=state [4]=lat [5]=lng [6]=members [7]=cert [8]=website [9]=lastmod
+
+const CC={"Certified Current":"#2c6e49","Passed Current":"#2980b9","Uncertified":"#95a5a6","Certified Legacy":"#c0392b"};
+function cc(c){return CC[c]||"#95a5a6"}
+function mr(m){if(!m||m<=0)return 3;return Math.max(3,Math.min(16,Math.sqrt(m/250)*3.2))}
+
+let filtered=[...ORGS],proj,circG;
+
+// Populate state dropdown
+const states=[...new Set(ORGS.map(o=>o[3]))].sort();
+const stSel=document.getElementById("stf");
+states.forEach(s=>{const op=document.createElement("option");op.value=s;op.textContent=s;stSel.appendChild(op)});
+
+function applyFilters(){
+  const q=document.getElementById("sb").value.toLowerCase();
+  const st=stSel.value;
+  const cf=document.getElementById("cf").value;
+  const sz=document.getElementById("szf").value;
+  filtered=ORGS.filter(o=>{
+    if(q&&!o[1].toLowerCase().includes(q)&&!o[2].toLowerCase().includes(q))return false;
+    if(st&&o[3]!==st)return false;
+    if(cf&&o[7]!==cf)return false;
+    if(sz){const m=o[6]||0;
+      if(sz==="xl"&&m<5000)return false;
+      if(sz==="lg"&&(m<1000||m>=5000))return false;
+      if(sz==="md"&&(m<200||m>=1000))return false;
+      if(sz==="sm"&&m>=200)return false;
+    }
+    return true;
+  });
+  renderDots();
+  document.getElementById("rc").textContent=filtered.length+" of "+ORGS.length+" MLSs";
+}
+
+function renderDots(){
+  if(!circG||!proj)return;
+  const circles=circG.selectAll("circle").data(filtered,d=>d[0]);
+  circles.join(
+    e=>e.append("circle")
+      .attr("r",d=>mr(d[6]))
+      .attr("cx",d=>{const c=proj([d[5],d[4]]);return c?c[0]:-999})
+      .attr("cy",d=>{const c=proj([d[5],d[4]]);return c?c[1]:-999})
+      .attr("fill",d=>cc(d[7]))
+      .attr("opacity",0.8)
+      .attr("stroke","rgba(255,255,255,0.6)")
+      .attr("stroke-width",0.5)
+      .style("cursor","pointer")
+      .on("mouseover",function(e,d){d3.select(this).attr("opacity",1).attr("stroke-width",1.5);showDetail(d)})
+      .on("mouseout",function(){d3.select(this).attr("opacity",0.8).attr("stroke-width",0.5)})
+      .on("click",(e,d)=>showDetail(d)),
+    u=>u
+      .attr("r",d=>mr(d[6]))
+      .attr("cx",d=>{const c=proj([d[5],d[4]]);return c?c[0]:-999})
+      .attr("cy",d=>{const c=proj([d[5],d[4]]);return c?c[1]:-999})
+      .attr("fill",d=>cc(d[7])),
+    x=>x.remove()
+  );
+}
+
+function showDetail(d){
+  const m=d[6]?d[6].toLocaleString():"N/A";
+  const cBg=cc(d[7])+"22";
+  const site=d[8]?`<a href="${d[8]}" target="_blank" rel="noopener">${d[8].replace(/^https?:\/\//,'')}</a>`:"";
+  const reso=`<a href="https://certification.reso.org/summary/${d[0]}" target="_blank" rel="noopener">RESO profile ↗</a>`;
+  const panel=document.getElementById("panel");
+  panel.classList.add("active");
+  panel.innerHTML=`
+    <div class="mls-name">${d[1]}
+      <span class="cert-badge" style="background:${cBg};color:${cc(d[7])}">${d[7]}</span>
+    </div>
+    <div class="mls-meta">${d[2]}, ${d[3]} &nbsp;·&nbsp; ${m} subscribers &nbsp;·&nbsp; ID: ${d[0]} &nbsp;·&nbsp; Last updated: ${d[9]}</div>
+    <div>${site}${reso}</div>
+  `;
+}
+
+async function init(){
+  const wrap=document.querySelector(".map-container");
+  const W=wrap.clientWidth||900;
+  const H=Math.round(W*0.58);
+  const svg=d3.select("#map").attr("viewBox",`0 0 ${W} ${H}`).attr("height",H);
+  proj=d3.geoAlbersUsa().scale(W*1.22).translate([W/2,H/2]);
+  const path=d3.geoPath(proj);
+
+  try{
+    const us=await d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json");
+    svg.append("g").selectAll("path")
+      .data(topojson.feature(us,us.objects.states).features)
+      .join("path")
+      .attr("d",path)
+      .attr("fill","#e8f4ec")
+      .attr("stroke","#fff")
+      .attr("stroke-width",0.6);
+    // State borders
+    svg.append("path")
+      .datum(topojson.mesh(us,us.objects.states,(a,b)=>a!==b))
+      .attr("d",path)
+      .attr("fill","none")
+      .attr("stroke","#c8ddd0")
+      .attr("stroke-width",0.4);
+  }catch(e){
+    svg.append("rect").attr("width",W).attr("height",H).attr("fill","#e8f4ec").attr("rx",8);
+    svg.append("text").attr("x",W/2).attr("y",H/2).attr("text-anchor","middle").attr("fill","#666").attr("font-size",13).text("Map unavailable — dots plotted by coordinates");
+  }
+
+  circG=svg.append("g");
+  renderDots();
+  document.getElementById("rc").textContent=ORGS.length+" MLSs";
+  document.getElementById("loader").classList.add("hidden");
+
+  ["sb","stf","cf","szf"].forEach(id=>{
+    document.getElementById(id).addEventListener("input",applyFilters);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
