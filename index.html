@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>US Multiple Listing Services Map</title>
+<title>US Multiple Listing Services Map | Inman</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -249,6 +249,64 @@
     margin-top: 6px;
     line-height: 1.5;
   }
+
+  /* Recently changed toggles */
+  .toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+    align-items: center;
+  }
+  .toggle-label { font-size: 12px; color: #888; margin-right: 2px; }
+  .toggle-btn {
+    height: 30px;
+    padding: 0 12px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    font-size: 12px;
+    font-family: inherit;
+    background: #fff;
+    color: #555;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .toggle-btn:hover { border-color: #2c6e49; color: #2c6e49; }
+  .toggle-btn.active { background: #2c6e49; border-color: #2c6e49; color: #fff; }
+
+  /* State summary panel */
+  .state-panel {
+    display: none;
+    background: #fff;
+    border: 1px solid #e5e3de;
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .state-panel.visible { display: block; }
+  .state-panel h3 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    font-size: 18px;
+    font-weight: 400;
+    color: #111;
+    margin-bottom: 12px;
+  }
+  .state-stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 500px) { .state-stats { grid-template-columns: repeat(2,1fr); } }
+  .ss-card { background: #f8f7f4; border-radius: 8px; padding: 10px 12px; text-align: center; }
+  .ss-card .sl { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 3px; }
+  .ss-card .sv { font-family: 'DM Serif Display', Georgia, serif; font-size: 22px; color: #111; line-height: 1; }
+  .state-mls-list { font-size: 12px; color: #666; columns: 2; column-gap: 16px; }
+  @media (max-width: 500px) { .state-mls-list { columns: 1; } }
+  .state-mls-list div { padding: 2px 0; border-bottom: 1px solid #f0efe9; }
+  .state-mls-list .sm-name { color: #333; font-weight: 500; }
+  .state-mls-list .sm-count { color: #999; }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500&family=DM+Serif+Display&display=swap" rel="stylesheet">
@@ -258,7 +316,7 @@
 
   <div class="header">
     <h1>US Multiple Listing Services</h1>
-    <p>All 540+ active MLSs tracked by RESO — plotted by headquarters location, sized by subscriber count. Scroll or pinch to zoom. Data: RESO UOI, March 2026.</p>
+    <p>All 511+ MLS organizations tracked by RESO — plotted by headquarters location, sized by subscriber count. Scroll or pinch to zoom. Data: RESO UOI, March 2026.</p>
   </div>
 
   <div class="stats-bar">
@@ -280,6 +338,12 @@
     </div>
   </div>
 
+  <div class="toggle-row">
+    <span class="toggle-label">Recently changed:</span>
+    <button class="toggle-btn" id="t2025" onclick="toggleRecent('2025')">Updated since Jan 2025 <span id="c2025"></span></button>
+    <button class="toggle-btn" id="t2024" onclick="toggleRecent('2024')">Updated since Jan 2024 <span id="c2024"></span></button>
+  </div>
+
   <div class="controls">
     <input type="text" id="sb" placeholder="Search by MLS name…">
     <select id="stf"><option value="">All states</option></select>
@@ -288,6 +352,7 @@
       <option value="Certified Current">Certified Current</option>
       <option value="Passed Current">Passed Current</option>
       <option value="Uncertified">Uncertified</option>
+      <option value="Certified Legacy">Certified Legacy</option>
     </select>
     <select id="szf">
       <option value="">All sizes</option>
@@ -297,6 +362,17 @@
       <option value="sm">Micro (&lt;200)</option>
     </select>
     <span class="result-count" id="rc">Loading…</span>
+  </div>
+
+  <div class="state-panel" id="statePanel">
+    <h3 id="spTitle"></h3>
+    <div class="state-stats">
+      <div class="ss-card"><div class="sl">Total MLSs</div><div class="sv" id="spTotal"></div></div>
+      <div class="ss-card"><div class="sl">Total Subscribers</div><div class="sv" id="spSubs"></div></div>
+      <div class="ss-card"><div class="sl">Certified Current</div><div class="sv" id="spCert"></div></div>
+      <div class="ss-card"><div class="sl">Uncertified</div><div class="sv" id="spUncert"></div></div>
+    </div>
+    <div class="state-mls-list" id="spList"></div>
   </div>
 
   <div class="map-wrap" id="mapWrap">
@@ -318,6 +394,7 @@
     <span class="legend-item"><span class="legend-dot" style="background:#2c6e49"></span>Certified Current</span>
     <span class="legend-item"><span class="legend-dot" style="background:#2980b9"></span>Passed Current</span>
     <span class="legend-item"><span class="legend-dot" style="background:#95a5a6"></span>Uncertified / Other</span>
+    <span class="legend-item"><span class="legend-dot" style="background:#c0392b"></span>Certified Legacy</span>
     <span style="margin-left:6px;font-size:11px;color:#bbb">· Dot size = subscriber count (continuous scale)</span>
   </div>
   <div class="coverage-note">
@@ -444,7 +521,7 @@ const ORGS=[
 ["M00000716","Eastern Kentucky Assn of REALTORS","Prestonsburg","KY",37.668445,-82.758198,143,"Certified Current","https://ekaronline.com","2025-01-03"],
 ["M00000631","Eastern Shore Assn of REALTORS","Onley","VA",37.70141,-75.71688,183,"Passed Current","https://www.usamls.net/easternshore","2023-07-19"],
 ["M00000769","Eastern Upper Peninsula Board of REALTORS","Sault Sainte Marie","MI",46.500731,-84.349806,91,"Certified Current","https://michiganuprealtors.com","2023-02-20"],
-["M00000854","El Dorado Board of REALTORS","El Dorado","AR",33.218096,-92.664052,62,"Uncertified","","2023-07-19"],
+["M00000854","El Dorado Board of REALTORS","El Dorado","AR",33.218096,-92.664052,62,"Uncertified","https://www.arkansasrealtors.com/local-board/el-dorado","2023-07-19"],
 ["M00000793","Elk Cameron Board of REALTORS","St Marys","PA",41.42797,-78.55472,36,"Certified Current","https://www.elkcameron.com","2025-01-03"],
 ["M00000691","Elko County Assn of REALTORS","Elko","NV",40.82537,-115.768831,150,"Certified Current","https://www.elkorealtors.com","2023-04-01"],
 ["M00000138","Emerald Coast Assn of REALTORS","Fort Walton Beach","FL",30.412195,-86.611633,4138,"Certified Current","https://www.emeraldcoastrealtors.com","2023-04-01"],
@@ -455,7 +532,7 @@ const ORGS=[
 ["M00000271","Flint Hills Assn of REALTORS","Manhattan","KS",39.176279,-96.603774,483,"Certified Current","https://www.flinthillsrealtors.net","2023-02-14"],
 ["M00000130","Florida Gulf Coast Multiple Listing Service","Fort Myers","FL",26.603746,-81.852924,9284,"Certified Current","https://rpcra.org","2025-03-04"],
 ["M00000168","Florida Keys Board of REALTORS","Key Largo","FL",25.075633,-80.461302,800,"Certified Current","https://www.flkeysboardofrealtors.com","2023-02-20"],
-["M00000705","Foothills REALTOR Assn of North Carolina","Rutherfordton","NC",35.363159,-81.987907,119,"Certified Current","https://foothills-realtors.com","2023-02-15"],
+["M00000705","Foothills REALTOR Assn of North Carolina","Rutherfordton","NC",35.363159,-81.987907,119,"Certified Legacy","https://foothills-realtors.com","2023-02-15"],
 ["M00000129","Forgotten Coast REALTOR Assn","Apalachicola","FL",29.722186,-84.989437,309,"Certified Current","https://www.forgottencoastmls.com","2024-09-11"],
 ["M00000211","Fort Dodge MLS","Fort Dodge","IA",42.515195,-94.177751,153,"Certified Current","https://www.ftdodgemls.com","2023-07-10"],
 ["M00000060","Fresno MLS","Fresno","CA",36.83534,-119.826209,3712,"Certified Current","https://fresnorealtors.com","2022-12-04"],
@@ -500,7 +577,7 @@ const ORGS=[
 ["M00000857","Harrisonburg-Rockingham Assn of REALTORS","Harrisonburg","VA",38.425602,-78.848419,410,"Uncertified","https://www.hrar.com","2023-03-02"],
 ["M00000367","Hattiesburg Area Assn of REALTORS","Hattiesburg","MS",31.35582,-89.35165,620,"Certified Current","https://www.haar-ms.org","2022-12-06"],
 ["M00000193","Hawaii Information Service (MLS Hawaii)","Honolulu","HI",21.317665,-157.869687,2020,"Certified Current","https://www.hawaiiinformation.com","2023-07-10"],
-["M00000283","Heart of Kentucky Assn of REALTORS","Elizabethtown","KY",37.763292,-85.901225,409,"Uncertified","","2023-03-02"],
+["M00000283","Heart of Kentucky Assn of REALTORS","Elizabethtown","KY",37.763292,-85.901225,409,"Uncertified","https://hkar.paragonrels.com/ParagonLS/Default.mvc/Login","2023-03-02"],
 ["M00000773","Heart of Missouri Board of REALTORS","Mexico","MO",39.066158,-91.832726,184,"Certified Current","https://www.hombor.com","2023-03-02"],
 ["M00000731","Heartland Assn of REALTORS","Sebring","FL",27.47468,-81.47311,537,"Uncertified","https://www.heartlandrealtors.org","2023-07-19"],
 ["M00000270","Heartland MLS","Leawood","KS",38.926375,-94.611287,12659,"Certified Current","https://www.heartlandmls.com","2022-04-27"],
@@ -526,12 +603,12 @@ const ORGS=[
 ["M00000816","Huron Board of REALTORS","Brookings","SD",44.363995,-98.215822,32,"Certified Current","https://hbor.org","2023-03-06"],
 ["M00000824","Idyllwild MLS","Idyllwild","CA",33.741769,-116.721444,43,"Passed Current","https://www.idyllwildassociationofrealtors.com","2023-04-06"],
 ["M00000288","Imagine MLS (Bluegrass REALTORS)","Lexington","KY",38.007534,-84.523964,4062,"Certified Current","https://www.bluegrassrealtors.com","2025-01-16"],
-["M00000058","Imperial County Assn of REALTORS","El Centro","CA",32.793346,-115.576788,272,"Certified Current","","2023-03-06"],
+["M00000058","Imperial County Assn of REALTORS","El Centro","CA",32.793346,-115.576788,272,"Certified Legacy","http://www.themls.com/loginicaor/","2023-03-06"],
 ["M00000465","Incline Village REALTORS","Incline Village","NV",39.248249,-119.947479,192,"Certified Current","https://inclinevillagerealtors.com","2023-04-06"],
 ["M00000256","Indiana Regional MLS","Lafayette","IN",40.424375,-86.881697,7125,"Certified Current","https://www.reindiana.com","2023-04-06"],
 ["M00000225","Intermountain MLS","Boise","ID",43.61042,-116.31045,8700,"Certified Current","https://www.intermountainmls.com","2023-04-06"],
 ["M00000206","Iowa City Area Assn of REALTORS","Coralville","IA",41.681095,-91.559726,475,"Uncertified","https://www.icaar.org","2023-07-10"],
-["M00000819","Iowa Great Lakes Board of REALTORS","Spirit Lake","IA",43.410276,-95.123918,208,"Certified Current","https://www.greatlakesboard.com","2023-07-10"],
+["M00000819","Iowa Great Lakes Board of REALTORS","Spirit Lake","IA",43.410276,-95.123918,208,"Certified Legacy","https://www.greatlakesboard.com","2023-07-10"],
 ["M00000118","IRES MLS","Fort Collins","CO",40.566112,-105.078639,7250,"Certified Current","https://ires-net.com","2023-07-10"],
 ["M00000626","Iron County Board of REALTORS","Cedar City","UT",37.657393,-113.082768,361,"Certified Current","https://www.ironcountybor.com","2023-07-10"],
 ["M00000321","Jackson Multiple Listing Service","Jackson","MI",42.25769,-84.35429,350,"Certified Current","https://www.jacksonmihomes.com","2022-08-16"],
@@ -557,8 +634,8 @@ const ORGS=[
 ["M00000812","Lassen Assn of REALTORS","Susanville","CA",40.414752,-120.647845,57,"Uncertified","https://lassenaor.com","2023-03-14"],
 ["M00000369","Laurel Board of REALTORS","Laurel","MS",31.69447,-89.12803,86,"Certified Current","https://www.laurelmsrealestate.com","2023-07-11"],
 ["M00000269","Lawrence Board of REALTORS","Lawrence","KS",38.97223,-95.288033,332,"Certified Current","https://www.lawrencerealtor.com","2023-03-14"],
-["M00000516","Lawton Board of REALTORS","Lawton","OK",34.614853,-98.41262,242,"Certified Current","https://lawtonboardofrealtors.com","2025-01-03"],
-["M00000008","Lee County Assn of REALTORS","Auburn","AL",32.626587,-85.461499,764,"Certified Current","https://www.usamls.net/lee","2023-04-03"],
+["M00000516","Lawton Board of REALTORS","Lawton","OK",34.614853,-98.41262,242,"Certified Current","https://lawtonboardofrealtors.org/","2025-01-03"],
+["M00000008","Lee County Assn of REALTORS","Auburn","AL",32.626587,-85.461499,764,"Certified Current","https://www.usamls.net/lee/default.asp","2023-04-03"],
 ["M00000616","LERA MLS (San Antonio Board of REALTORS)","San Antonio","TX",29.545289,-98.556564,15449,"Certified Current","https://realestate.sabor.com","2025-08-28"],
 ["M00000783","Lincoln County Board of REALTORS","North Platte","NE",41.1366,-100.762032,68,"Uncertified","https://www.lincolncorealtors.com","2025-08-25"],
 ["M00000201","LINK","Boston","MA",42.35754,-71.059113,null,"Passed Current","https://www.mylinkmls.com","2022-03-24"],
@@ -667,7 +744,7 @@ const ORGS=[
 ["M00000651","Olympic Listing Service","Sequim","WA",48.080578,-123.102994,325,"Uncertified","https://www.sequimrealtors.org","2023-07-14"],
 ["M00000489","OneKey MLS","Farmingdale","NY",40.71841,-73.42664,46739,"Certified Current","https://www.onekeymlsny.com","2023-11-03"],
 ["M00000529","Oregon Coast Multiple Listing Service","Lincoln City","OR",44.982575,-124.007435,600,"Uncertified","https://www.oregoncoastmls.com","2025-07-10"],
-["M00000455","Otero County Assn of REALTORS","Alamogordo","NM",32.899448,-105.949908,152,"Certified Current","https://www.ocar-nm.org","2024-12-05"],
+["M00000455","Otero County Assn of REALTORS","Alamogordo","NM",32.899448,-105.949908,152,"Certified Legacy","https://www.ocar-nm.org","2024-12-05"],
 ["M00000409","Outer Banks Assn of REALTORS","Nags Head","NC",35.993327,-75.647318,943,"Certified Current","https://outerbanksrealtors.com","2022-09-26"],
 ["M00000354","Ozark Gateway Assn of REALTORS","Joplin","MO",37.083123,-94.486486,730,"Certified Current","https://thelanding.missourirealtor.org/ogar/home","2023-03-31"],
 ["M00000648","Pacific Regional MLS","Kennewick","WA",46.210032,-119.216989,1600,"Certified Current","https://pacmls.com","2023-03-01"],
@@ -722,7 +799,7 @@ const ORGS=[
 ["M00000846","San Diego MLS","San Diego","CA",32.830399,-117.14516,9999,"Certified Current","https://www.sdmls.com","2025-11-24"],
 ["M00000094","San Francisco Assn of REALTORS MLS","San Francisco","CA",37.777898,-122.421672,5030,"Certified Current","https://my.sfrealtors.com","2022-10-13"],
 ["M00000785","San Juan County Board of REALTORS","Farmington","NM",36.748374,-108.173124,231,"Certified Current","https://www.sanjuancountyboardofrealtors.com","2023-03-17"],
-["M00000163","Sanibel & Captiva Islands Assn of REALTORS","Sanibel","FL",26.43657,-82.07593,235,"Certified Current","","2023-04-06"],
+["M00000163","Sanibel & Captiva Islands Assn of REALTORS","Sanibel","FL",26.43657,-82.07593,235,"Certified Legacy","https://www.sanibelrealtors.com/","2023-04-06"],
 ["M00000096","Santa Barbara Multiple Listing Service","Santa Barbara","CA",34.424238,-119.708993,1650,"Certified Current","https://www.sbaor.org","2023-04-06"],
 ["M00000461","Santa Fe Assn of REALTORS","Santa Fe","NM",35.695485,-105.951892,953,"Certified Current","https://sfar.com","2022-09-26"],
 ["M00000751","Savannah Multi-List Corporation","Savannah","GA",32.010933,-81.108993,2021,"Certified Current","https://savannaharearealtors.com","2022-10-14"],
@@ -736,7 +813,7 @@ const ORGS=[
 ["M00000228","Snake River Regional MLS","Ammon","ID",43.483791,-111.969249,1200,"Certified Current","https://www.snakerivermls.com","2023-03-17"],
 ["M00000637","South Central Assn of REALTORS","Farmville","VA",37.30095,-78.39004,121,"Passed Current","https://www.usamls.net/southcentral","2023-07-19"],
 ["M00000277","South Central Kansas MLS","Wichita","KS",37.680041,-97.339385,2501,"Passed Current","https://sckrealtors.com","2025-01-16"],
-["M00000285","South Central Kentucky Assn of REALTORS","Glasgow","KY",36.974943,-85.937542,127,"Certified Current","","2023-04-06"],
+["M00000285","South Central Kentucky Assn of REALTORS","Glasgow","KY",36.974943,-85.937542,127,"Certified Legacy","","2023-04-06"],
 ["M00000659","South Central Wisconsin Multiple Listing Service","Madison","WI",43.137867,-89.301078,4302,"Certified Current","https://scwmls.com","2023-04-06"],
 ["M00000756","South Georgia MLS","Valdosta","GA",30.847126,-83.298887,393,"Certified Current","https://www.valdostaboardofrealtors.com","2023-03-07"],
 ["M00000446","South Jersey Shore Regional MLS","Egg Harbor Township","NJ",39.421455,-74.589215,3085,"Uncertified","https://acrealestate.org","2023-07-14"],
@@ -755,7 +832,7 @@ const ORGS=[
 ["M00000179","Southwest Georgia Board of REALTORS","Bainbridge","GA",30.90915,-84.57558,319,"Certified Current","https://www.swgamls.com","2023-03-17"],
 ["M00000207","Southwest Iowa Assn of REALTORS","Council Bluffs","IA",41.256875,-95.856159,481,"Certified Current","https://swiar.org","2023-04-06"],
 ["M00000763","Southwest Kansas MLS","Liberal","KS",37.040411,-100.922005,821,"Uncertified","http://www.southwestkansasmls.com","2022-08-02"],
-["M00000301","Southwest Louisiana Assn of REALTORS","Lake Charles","LA",30.209166,-93.231634,753,"Certified Current","https://www.swlar.com","2025-07-15"],
+["M00000301","Southwest Louisiana Assn of REALTORS","Lake Charles","LA",30.209166,-93.231634,753,"Certified Legacy","https://www.swlar.com","2025-07-15"],
 ["M00000370","Southwest Mississippi Board of REALTORS","McComb","MS",31.17494,-90.403987,143,"Certified Current","https://www.usamls.net/southwestms","2023-03-13"],
 ["M00000456","Southwest MLS (Greater Albuquerque)","Albuquerque","NM",35.10253,-106.628362,4300,"Certified Current","https://www.gaar.com","2022-12-04"],
 ["M00000630","Southwest Virginia Assn of REALTORS","Abingdon","VA",36.70494,-81.99967,681,"Passed Current","https://www.swvar.com","2023-07-19"],
@@ -814,7 +891,7 @@ const ORGS=[
 ["M00000549","West Penn Multi-List","Pittsburgh","PA",40.57019,-80.0371,8432,"Certified Current","https://www.westpennmls.com","2023-07-06"],
 ["M00000039","Western Arizona REALTOR Data Exchange (WARDEX)","Bullhead City","AZ",35.0539,-114.589028,1045,"Certified Current","https://www.wardexre.com","2023-03-28"],
 ["M00000761","Western Kansas Assn of REALTORS","Hays","KS",38.888978,-99.316962,84,"Uncertified","https://wksrealtors.com","2025-01-16"],
-["M00000280","Western Kentucky Regional MLS","Mayfield","KY",36.70789,-88.65429,551,"Certified Current","","2023-07-06"],
+["M00000280","Western Kentucky Regional MLS","Mayfield","KY",36.70789,-88.65429,551,"Certified Current","https://westky.paragonrels.com/ParagonLS/Default.mvc/Login","2023-07-06"],
 ["M00000442","Western Nebraska Board of REALTORS","Scottsbluff","NE",41.851012,-103.70726,81,"Uncertified","","2023-03-14"],
 ["M00000469","Western New York Real Estate Information Services","Amherst","NY",43.014719,-78.779778,3500,"Certified Current","https://www.bnar.org","2023-03-28"],
 ["M00000506","Western Regional Information Systems & Technology (WRIST)","Troy","OH",40.051333,-84.191779,1500,"Certified Current","https://www.westohiorealestate.com","2024-05-15"],
@@ -827,15 +904,43 @@ const ORGS=[
 ["M00000858","Williamsburg Multiple Listing Service","Williamsburg","VA",37.309067,-76.752649,915,"Certified Current","https://waarealtor.com","2023-03-28"],
 ["M00000014","Wiregrass REALTORS","Enterprise","AL",31.30145,-85.83579,263,"Passed Current","https://www.wiregrassboardofrealtors.com","2023-01-05"],
 ["M00000679","Wyoming MLS","Casper","WY",42.860605,-106.336769,730,"Uncertified","https://www.wyomingmls.com","2023-03-28"],
-["M00000050","Yuma Assn of REALTORS","Yuma","AZ",32.72177,-114.62107,760,"Passed Current","https://www.yumaaor.com","2024-05-07"]
+["M00000050","Yuma Assn of REALTORS","Yuma","AZ",32.72177,-114.62107,760,"Passed Current","https://www.yumaaor.com","2024-05-07"],
+["M00000074","Inyo County MLS","Independence","CA",36.802420,-118.199630,null,"Uncertified","","2024-04-26"],
+["M00000725","Gila Valley Multiple Listing Service","St. George","UT",32.813612,-109.701631,null,"Uncertified","http://www.gilavalleymls.com","2023-07-19"],
+["M00000808","Mesquite Real Estate Association","Mesquite","NV",36.803297,-114.064959,null,"Uncertified","http://www.mreaonline.com","2023-01-25"],
+["M00000847","Lewistown Chapter of Billings Assn of REALTORS","Billings","MT",47.0578,-108.9747,null,"Passed Current","http://pmcidx.promatchcomplete.com/?board=lwmt","2022-08-02"],
+["M00000850","Martha's Vineyard MLS","West Yarmouth","MA",41.677870,-70.246380,null,"Certified Current","https://cciaor.com","2022-08-02"],
+["M00000851","Havre Hi-Line Chapter of Billings Assn of REALTORS","Billings","MT",48.545400,-109.677500,null,"Certified Current","https://link.flexmls.com/12jlfurrpyc5,1","2022-08-02"],
+["M00000859","Central Listing Service at Ocean Reef","Key Largo","FL",25.313045,-80.279650,null,"Passed Current","","2025-05-23"]
 ];
+
+// ── Curated Inman links for top 20 MLSs ─────────────────────────
+const INMAN_CURATED = {
+  "M00000093": "https://www.inman.com/?s=CRMLS",
+  "M00000309": "https://www.inman.com/?s=Bright+MLS",
+  "M00000146": "https://www.inman.com/?s=Stellar+MLS",
+  "M00000151": "https://www.inman.com/?s=Miami+Realtors+MLS",
+  "M00000175": "https://www.inman.com/?s=FMLS",
+  "M00000594": "https://www.inman.com/?s=NTREIS",
+  "M00000188": "https://www.inman.com/?s=Georgia+MLS",
+  "M00000243": "https://www.inman.com/?s=MRED",
+  "M00000489": "https://www.inman.com/?s=OneKey+MLS",
+  "M00000306": "https://www.inman.com/?s=MLS+PIN",
+  "M00000048": "https://www.inman.com/?s=ARMLS",
+  "M00000170": "https://www.inman.com/?s=BeachesMLS",
+  "M00000599": "https://www.inman.com/?s=Houston+Association+of+Realtors",
+  "M00000650": "https://www.inman.com/?s=NWMLS",
+  "M00000116": "https://www.inman.com/?s=REcolorado",
+  "M00000091": "https://www.inman.com/?s=MetroList",
+  "M00000449": "https://www.inman.com/?s=Garden+State+MLS",
+  "M00000345": "https://www.inman.com/?s=NorthstarMLS",
+  "M00000391": "https://www.inman.com/?s=Canopy+MLS",
+  "M00000127": "https://www.inman.com/?s=SmartMLS"
+};
 
 // ── Color & sizing ──────────────────────────────────────────────
 const CC = {"Certified Current":"#2c6e49","Passed Current":"#2980b9","Uncertified":"#95a5a6","Certified Legacy":"#c0392b"};
 function certColor(c){ return CC[c] || "#95a5a6"; }
-
-// Continuous radius on a sqrt scale: min 3px, max 22px
-// Reference: sqrt(119125) ≈ 345. We scale so CRMLS (~119k) = 22px, tiny ones = 3px.
 const R_SCALE = d3.scaleSqrt().domain([0, 120000]).range([3, 22]).clamp(true);
 function dotR(m){ return R_SCALE(m || 0); }
 
@@ -843,14 +948,56 @@ function dotR(m){ return R_SCALE(m || 0); }
 let filtered = [...ORGS];
 let svgEl, proj, circG, zoomBehavior;
 let currentTransform = d3.zoomIdentity;
+let activeRecent = null; // null | '2025' | '2024'
 
-// Populate state dropdown
+// Populate state dropdown + count badge on toggles
 const states = [...new Set(ORGS.map(o => o[3]))].sort();
 const stSel = document.getElementById("stf");
 states.forEach(s => {
   const op = document.createElement("option");
   op.value = s; op.textContent = s; stSel.appendChild(op);
 });
+document.getElementById("c2025").textContent = "(" + ORGS.filter(o => o[9] >= "2025-01-01").length + ")";
+document.getElementById("c2024").textContent = "(" + ORGS.filter(o => o[9] >= "2024-01-01").length + ")";
+
+// ── Recently-changed toggles ────────────────────────────────────
+function toggleRecent(year) {
+  if (activeRecent === year) {
+    activeRecent = null;
+    document.getElementById("t2025").classList.remove("active");
+    document.getElementById("t2024").classList.remove("active");
+  } else {
+    activeRecent = year;
+    document.getElementById("t2025").classList.toggle("active", year === "2025");
+    document.getElementById("t2024").classList.toggle("active", year === "2024");
+  }
+  applyFilters();
+}
+
+// ── State summary panel ─────────────────────────────────────────
+function updateStatePanel(st) {
+  const panel = document.getElementById("statePanel");
+  if (!st) { panel.classList.remove("visible"); return; }
+
+  const stOrgs = ORGS.filter(o => o[3] === st);
+  const totalSubs = stOrgs.reduce((s, o) => s + (o[6] || 0), 0);
+  const certified = stOrgs.filter(o => o[7] === "Certified Current").length;
+  const uncert = stOrgs.filter(o => o[7] === "Uncertified").length;
+
+  document.getElementById("spTitle").textContent = st + " — Multiple Listing Services";
+  document.getElementById("spTotal").textContent = stOrgs.length;
+  document.getElementById("spSubs").textContent = totalSubs >= 1000
+    ? (totalSubs / 1000).toFixed(0) + "k" : totalSubs.toLocaleString();
+  document.getElementById("spCert").textContent = certified;
+  document.getElementById("spUncert").textContent = uncert;
+
+  const sorted = [...stOrgs].sort((a, b) => (b[6] || 0) - (a[6] || 0));
+  document.getElementById("spList").innerHTML = sorted.map(o =>
+    `<div><span class="sm-name">${o[1]}</span> <span class="sm-count">${o[6] ? o[6].toLocaleString() + " members" : "N/A"}</span></div>`
+  ).join("");
+
+  panel.classList.add("visible");
+}
 
 // ── Filtering ───────────────────────────────────────────────────
 function applyFilters(){
@@ -860,9 +1007,7 @@ function applyFilters(){
   const sz = document.getElementById("szf").value;
 
   filtered = ORGS.filter(o => {
-    // Name-only search
     if (q && !o[1].toLowerCase().includes(q)) return false;
-    // State dropdown
     if (st && o[3] !== st) return false;
     if (cf && o[7] !== cf) return false;
     if (sz) {
@@ -872,11 +1017,14 @@ function applyFilters(){
       if (sz === "md" && (m < 200  || m >= 1000)) return false;
       if (sz === "sm" && m >= 200)  return false;
     }
+    if (activeRecent === "2025" && o[9] < "2025-01-01") return false;
+    if (activeRecent === "2024" && o[9] < "2024-01-01") return false;
     return true;
   });
 
   renderDots();
   document.getElementById("rc").textContent = filtered.length + " of " + ORGS.length + " MLSs";
+  updateStatePanel(st);
 }
 
 // ── Dot rendering ───────────────────────────────────────────────
@@ -887,9 +1035,8 @@ function pos(o){
 
 function renderDots(){
   if (!circG || !proj) return;
-
-  const k = currentTransform.k;  // current zoom scale — shrink radii as you zoom in
-  const rScale = 1 / Math.sqrt(k); // gentle inverse so dots don't balloon at high zoom
+  const k = currentTransform.k;
+  const rScale = 1 / Math.sqrt(k);
 
   circG.selectAll("circle")
     .data(filtered, d => d[0])
@@ -920,26 +1067,34 @@ function renderDots(){
     );
 }
 
-// ── Detail panel ────────────────────────────────────────────────
+// ── Detail panel with Inman links ───────────────────────────────
 function showDetail(d){
   const m    = d[6] ? d[6].toLocaleString() : "N/A";
   const cBg  = certColor(d[7]) + "22";
   const site = d[8] ? `<a href="${d[8]}" target="_blank" rel="noopener">${d[8].replace(/^https?:\/\//,'')}</a>` : "";
   const reso = `<a href="https://certification.reso.org/summary/${d[0]}" target="_blank" rel="noopener">RESO profile ↗</a>`;
-  const panel = document.getElementById("panel");
-  panel.innerHTML = `
+
+  // Inman link: curated for top 20, dynamic search for all others
+  const inmanUrl = INMAN_CURATED[d[0]]
+    || `https://www.inman.com/?s=${encodeURIComponent(d[1].replace(/\bAssn\b/g,'Association').replace(/®/g,''))}`;
+  const inman = `<a href="${inmanUrl}" target="_blank" rel="noopener" style="color:#e8452c">Inman coverage ↗</a>`;
+
+  const recentFlag = d[9] >= "2025-01-01"
+    ? `<span style="font-size:11px;background:#fff3cd;color:#856404;padding:2px 7px;border-radius:10px;margin-left:6px">Recently updated</span>`
+    : "";
+
+  document.getElementById("panel").innerHTML = `
     <div class="mls-name">${d[1]}
-      <span class="cert-badge" style="background:${cBg};color:${certColor(d[7])}">${d[7]}</span>
+      <span class="cert-badge" style="background:${cBg};color:${certColor(d[7])}">${d[7]}</span>${recentFlag}
     </div>
     <div class="mls-meta">${d[2]}, ${d[3]} &nbsp;·&nbsp; ${m} subscribers &nbsp;·&nbsp; ID: ${d[0]} &nbsp;·&nbsp; Updated: ${d[9]}</div>
-    <div>${site ? site + "&nbsp;&nbsp;" : ""}${reso}</div>`;
+    <div>${site ? site + "&nbsp;&nbsp;" : ""}${reso}&nbsp;&nbsp;${inman}</div>`;
 }
 
 // ── Zoom helpers ─────────────────────────────────────────────────
 function zoomBy(factor){
   svgEl.transition().duration(300).call(zoomBehavior.scaleBy, factor);
 }
-
 function resetZoom(){
   svgEl.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity);
 }
@@ -955,7 +1110,6 @@ async function init(){
   proj  = d3.geoAlbersUsa().scale(W * 1.22).translate([W / 2, H / 2]);
   const path = d3.geoPath(proj);
 
-  // State map layer
   const mapG = svgEl.append("g").attr("class","map-layer");
   try {
     const us = await d3.json("https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json");
@@ -978,34 +1132,26 @@ async function init(){
       .attr("fill","#666").attr("font-size",13).text("Map tiles unavailable");
   }
 
-  // Dot layer (inside zoom group)
   circG = svgEl.append("g").attr("class","dot-layer");
 
-  // ── Zoom & pan via D3 ──
   zoomBehavior = d3.zoom()
     .scaleExtent([1, 20])
     .on("zoom", (event) => {
       currentTransform = event.transform;
       mapG.attr("transform", event.transform);
       circG.attr("transform", event.transform);
-      // Rescale dot radii so they don't grow with zoom
       const k = event.transform.k;
       const rScale = 1 / Math.sqrt(k);
       circG.selectAll("circle").attr("r", d => dotR(d[6]) * rScale);
-      // Show reset button once zoomed in
-      const btn = document.getElementById("resetBtn");
-      if (k > 1.1) btn.classList.add("visible");
-      else btn.classList.remove("visible");
+      document.getElementById("resetBtn").classList.toggle("visible", k > 1.1);
     });
 
   svgEl.call(zoomBehavior);
 
-  // Initial render
   renderDots();
   document.getElementById("rc").textContent = ORGS.length + " MLSs";
   document.getElementById("loader").classList.add("hidden");
 
-  // Wire up filters
   ["sb","stf","cf","szf"].forEach(id => {
     document.getElementById(id).addEventListener("input", applyFilters);
   });
