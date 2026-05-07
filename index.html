@@ -38,39 +38,6 @@
     line-height: 1.5;
   }
 
-  .stats-bar {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-
-  @media (max-width: 640px) { .stats-bar { grid-template-columns: repeat(2, 1fr); } }
-
-  .stat-card {
-    background: #fff;
-    border: 1px solid #e5e3de;
-    border-radius: 10px;
-    padding: 14px 16px;
-    text-align: center;
-  }
-  .stat-card .label {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: #999;
-    font-weight: 500;
-    margin-bottom: 4px;
-  }
-  .stat-card .value {
-    font-family: 'DM Serif Display', Georgia, serif;
-    font-size: 28px;
-    color: #111;
-    line-height: 1;
-  }
-  .stat-card .value.down { color: #c0392b; }
-  .stat-card .value.up { color: #2c6e49; }
-
   .controls {
     display: flex;
     flex-wrap: wrap;
@@ -317,25 +284,6 @@
   <div class="header">
     <h1>US Multiple Listing Services</h1>
     <p>All 511+ MLS organizations tracked by RESO — plotted by headquarters location, sized by subscriber count. Scroll or pinch to zoom. Data: RESO UOI, March 2026.</p>
-  </div>
-
-  <div class="stats-bar">
-    <div class="stat-card">
-      <div class="label">Active MLSs (2025)</div>
-      <div class="value">484</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Peak (2015)</div>
-      <div class="value">~850</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Decline since peak</div>
-      <div class="value down">−43%</div>
-    </div>
-    <div class="stat-card">
-      <div class="label">Top 20 revenue share</div>
-      <div class="value up">49%</div>
-    </div>
   </div>
 
   <div class="toggle-row">
